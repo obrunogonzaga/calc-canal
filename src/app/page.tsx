@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 const faqs = [
   [
     "Posso calcular sem criar conta?",
-    "Sim. A calculadora desta prévia é gratuita, sem cadastro e sem limite diário de simulações. O catálogo e o plano PRO ainda estão em preparação.",
+    "Sim. A calculadora desta prévia é gratuita, sem cadastro e sem limite diário de simulações. O catálogo de produtos e o plano PRO ainda estão em preparação.",
   ],
   [
     "Margem é a mesma coisa que markup?",
@@ -30,7 +30,7 @@ const faqs = [
   ],
   [
     "Já posso assinar ou salvar meus produtos?",
-    "Ainda não. Esta prévia permite calcular e baixar a simulação. Cadastro, catálogo, pagamento e cancelamento serão disponibilizados juntos na versão comercial, com condições publicadas antes da contratação.",
+    "Esta prévia permite calcular e baixar a simulação. Quando o cadastro estiver habilitado, também é possível guardar o resultado na conta. O cadastro está sendo testado; catálogo, pagamento e cancelamento da assinatura estarão disponíveis na versão comercial, com condições publicadas antes da contratação.",
   ],
 ];
 export default function Home() {
@@ -130,7 +130,7 @@ export default function Home() {
           </div>
           <p>Comece pelo custo ou confira um preço que você já pratica.</p>
         </div>
-        <Calculator />
+        <Calculator allowAccount={process.env.AUTH_ENABLED === "true"} />
       </section>
       <section id="como-funciona" className="how-section shell">
         <div className="section-intro">
@@ -185,8 +185,9 @@ export default function Home() {
               </h2>
             </div>
             <p>
-              O PRO está em preparação. Esta página ainda não recebe pagamentos
-              nem cadastra contas.
+              O PRO está em preparação. Ainda não há pagamentos ou assinatura. O
+              cadastro gratuito está disponível nos ambientes de teste
+              habilitados.
             </p>
           </div>
           <div className="plans">

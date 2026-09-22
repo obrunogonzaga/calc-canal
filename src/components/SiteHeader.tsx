@@ -17,6 +17,9 @@ export function SiteHeader() {
           <Link href="/#calculadora">Calculadora</Link>
           <Link href="/#planos">Planos</Link>
           <Link href="/ajuda">Ajuda</Link>
+          {process.env.AUTH_ENABLED === "true" && (
+            <Link href="/app">Minha conta</Link>
+          )}
         </nav>
         <span className="preview-label">Prévia gratuita</span>
       </div>

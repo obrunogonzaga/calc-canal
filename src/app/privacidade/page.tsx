@@ -1,5 +1,5 @@
-import { getSiteOrigin } from "@/lib/site";
 import type { Metadata } from "next";
+import { getSiteOrigin } from "@/lib/site";
 import { InfoPage } from "@/components/InfoPage";
 export const metadata: Metadata = {
   title: "Privacidade da prévia",
@@ -11,37 +11,50 @@ export default function Privacy() {
   return (
     <InfoPage title="Privacidade desta prévia">
       <p className="notice">
-        Informações sobre a versão gratuita de demonstração. A política da
-        operação comercial, incluindo identificação do fornecedor e canal para
-        solicitações de dados, ainda depende de definição antes do lançamento.
+        Versão 2026-09-22. Prévia de desenvolvimento; nos testes locais, use
+        apenas dados fictícios. Identificação do fornecedor, canal privado para
+        solicitações e política comercial definitiva precisam ser publicados
+        antes do lançamento público de contas.
       </p>
-      <h2>Valores da calculadora</h2>
+      <h2>Calculadora e rascunho</h2>
       <p>
-        Os valores digitados são processados no navegador. Esta versão não os
-        envia a um servidor para salvar produtos, não cadastra usuários e não
-        coleta e-mails para uma lista de espera. Recarregar ou fechar a página
-        descarta a simulação.
+        O cálculo avulso acontece no navegador. Ao escolher guardar uma
+        simulação, o rascunho fica no armazenamento desta aba para continuar
+        após o cadastro. Ele é removido ao salvar na conta, descartar, sair ou
+        fechar a aba. Não há envio ao marketplace.
       </p>
-      <h2>PDF e acesso ao site</h2>
+      <h2>Conta e simulações salvas</h2>
       <p>
-        O PDF é gerado no seu dispositivo e contém os valores e premissas
-        exibidos. Ao acessar o site, a infraestrutura de hospedagem pode
-        processar dados técnicos necessários à entrega da página, como endereço
-        IP e registros de acesso. Não há analytics de marketing adicionado nesta
-        versão.
+        Nos ambientes com cadastro habilitado, guardamos nome, e-mail,
+        confirmação do endereço, senha protegida por hash, sessões e registro de
+        aceite destas condições. A simulação só é persistida depois de entrar e
+        confirmar o salvamento. Os dados são vinculados à conta autenticada.
       </p>
-      <h2>Links externos</h2>
       <p>
-        Fontes oficiais e o contato no GitHub abrem serviços externos, com
-        políticas próprias. Nunca inclua informações privadas em uma solicitação
-        pública. Links não enviam seus valores de simulação.
+        A preferência opcional de novidades é separada dos e-mails de
+        verificação e recuperação necessários ao acesso. Nenhuma campanha de
+        marketing foi ativada nesta prévia.
       </p>
-      <h2>Dados de versões anteriores</h2>
+      <h2>E-mails e testes</h2>
       <p>
-        Uma demonstração anterior podia gravar um contador e e-mails somente no
-        armazenamento local do navegador. Esta versão não lê nem envia esses
-        dados. Você pode removê-los pelas configurações de dados do site no seu
-        navegador.
+        No ambiente local, mensagens de verificação e recuperação são recebidas
+        por uma caixa de teste na própria máquina, sem envio para a internet.
+        Ela contém links de acesso temporários e não deve ser exposta
+        publicamente. Entrega a endereços reais depende da configuração de um
+        serviço de e-mail e da aprovação da operação comercial.
+      </p>
+      <h2>Infraestrutura e PDF</h2>
+      <p>
+        A hospedagem pode processar dados técnicos necessários à entrega do
+        site. Não adicionamos analytics de marketing. O PDF é gerado no
+        navegador e contém os valores e premissas exibidos.
+      </p>
+      <h2>Solicitações e links externos</h2>
+      <p>
+        O contato público no GitHub é destinado apenas a erros com exemplos
+        fictícios. Não envie documentos, senhas, tokens ou dados privados. Um
+        canal privado para solicitações de dados será definido antes do
+        lançamento público.
       </p>
     </InfoPage>
   );

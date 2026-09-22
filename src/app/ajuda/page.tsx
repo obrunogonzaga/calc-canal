@@ -36,9 +36,10 @@ export default function Help() {
       <h2 id="lancamento">O que está sendo preparado</h2>
       <p>
         A próxima versão terá conta, catálogo salvo e plano PRO para importação
-        CSV e recálculo em lote. Ainda não há cadastro, lista de espera ou
-        cobrança nesta prévia. O preço de lançamento é R$ 29,90/mês; as
-        condições finais serão informadas antes de qualquer contratação.
+        CSV e recálculo em lote. O cadastro e o salvamento de simulações estão
+        disponíveis nos ambientes de teste habilitados. Ainda não há lista de
+        espera ou cobrança. O preço de lançamento é R$ 29,90/mês; as condições
+        finais serão informadas antes de qualquer contratação.
       </p>
       <h2>Contato nesta prévia</h2>
       <p>
