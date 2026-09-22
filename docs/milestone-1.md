@@ -11,21 +11,21 @@ A entrega de código não conclui decisões do fundador, contas externas, homolo
 | Item | Proposta | Evidência/estado | Próxima ação |
 |---|---|---|---|
 | Marca | PreçoPronto | Escolhida na conversa | Aplicada na prévia |
-| Mensal | R$ 19,90 | Pendente de decisão do fundador | Confirmar oferta |
-| Limites | Free 5 / PRO 500 produtos | Pendente de decisão | Confirmar limites |
+| Mensal | R$ 29,90 | Aprovado pelo fundador em 22/09/2026 | Aplicado à landing; cobrança ainda indisponível |
+| Limites | Free 5 / PRO 500 produtos | Aprovados pelo fundador em 22/09/2026 | Aplicar no catálogo do M2 |
 | Pagamento | Cartão recorrente e Pix avulso mensal | Escopo do MVP; gateway não selecionado | Confirmar provedor/conta |
 | Carência | 3 dias só na renovação | Proposta | Confirmar política |
 | Retenção/cancelamento | Fim do período pago; excedentes em leitura; retenção a definir | Proposta, não contrato | Definir prazo e processo |
-| Gateway | Asaas como candidato | Taxas da conta, elegibilidade e sandbox não verificados | Fundador indicar conta; validar ticket e recursos |
+| Gateway | Asaas selecionado para abertura | Formulário aberto; criação de senha, termos e abertura da conta financeira exigem participação do titular. Conta ainda não criada | Titular concluir cadastro; conferir taxas da conta e homologar |
 | Auth e banco | Supabase como candidato | Conta/ambiente não verificados | Definir fornecedor e acesso seguro |
 | E-mail | Resend como candidato | Domínio remetente/conta não verificados | Definir remetente e validar entrega |
-| Hospedagem | Vercel já integrada ao repositório | Preview da PR #18 Ready, projeto calc-canal comprovado pelo check; domínio de produção não confirmado | Confirmar domínio e configuração final de produção |
+| Hospedagem | Hostinger VPS para início comercial | Alternativa indicada pelo fundador se Hobby não permitir uso comercial; restrição confirmada na documentação Vercel. VPS consultado em modo leitura com capacidade disponível | Preparar aplicação isolada; domínio e deploy ainda pendentes |
 | Domínio | precopronto.com.br | Proposto; não há prova de aquisição | Confirmar propriedade/DNS |
 | Fornecedor/CNPJ e NFS-e | Não informado | Bloqueia contratação pública | Definir com responsável |
 | Suporte comercial | E-mail/formulário a definir | Prévia aponta ao GitHub público, sem formulário que perde dados | Informar canal e horário |
 | Tarifas | Revisão semanal | Processo abaixo; responsável comercial não designado | Nomear responsável |
 
-Nunca registrar credenciais nessa ficha. Perguntas foram enviadas ao fundador; ausência de resposta não equivale a aprovação. As propostas aparecem explicitamente como propostas na landing. #3 permanece aberta enquanto as decisões/contas não estiverem comprovadas.
+Nunca registrar credenciais nessa ficha. Perguntas foram enviadas ao fundador; ausência de resposta não equivale a aprovação. Preço e limites foram confirmados; demais propostas não são presumidas aprovadas. A landing continua sem contratação disponível. #3 permanece aberta enquanto as decisões/contas não estiverem comprovadas.
 
 ## #4 — cálculo e qualidade
 
@@ -85,3 +85,14 @@ Registro de execução final deve separar teste local, CI da PR, preview, merge 
 - CI remota do commit c5f9581 aprovada: https://github.com/obrunogonzaga/calc-canal/actions/runs/35773888412.
 - Contraste calculado sobre estilos renderizados de 91 elementos de texto da landing (títulos, parágrafos, labels, links, botões, summaries, termos e valores): nenhuma falha; menor razão observada 5,18:1. Essa amostra complementa QA visual e teclado, não é certificação completa de acessibilidade.
 - PR #18 continua em rascunho. O código da prévia não resolve as decisões comerciais requeridas pela #3 nem autoriza fechar o milestone.
+
+### Decisões e infraestrutura — atualização do fundador
+
+- Aprovados: R$ 29,90/mês; Free com 5 produtos; PRO com 500.
+- Orçamento inicial de aquisição: R$ 200 totais. É limite de teste, não autorização para iniciar campanha; não há CPC, conversão ou retorno observado.
+- Hostinger verificada por SSH somente leitura em 22/09/2026 19:46 UTC: 15.992 MB de RAM total, 14.187 MB disponíveis; 156 GB de disco livres; load 0,21/0,21/0,14. Há Docker/Traefik e outros produtos em produção. Não houve alteração, criação de stack ou deploy. A fotografia de capacidade não equivale a teste de carga nem garantia de disponibilidade.
+- Regra comercial Vercel: Hobby tem restrições contratuais e cotas técnicas; divulgação de produto/serviço já é exemplo de uso comercial. Não aguardar primeira receita para contratar plano adequado ou mudar de hospedagem. Fonte: https://vercel.com/docs/limits/fair-use-guidelines#commercial-usage.
+- Cadastro Asaas em https://www.asaas.com/onboarding/createAccount requer senha e aceite de termos. Formulário deixado para o titular; não houve criação de conta, aceite, envio de CPF/CNPJ/documentos ou geração de credenciais.
+- Pendem domínio/fornecedor/suporte, conta elegível do gateway e homologação, escolha de auth/banco/e-mail, retenção e demais políticas.
+
+Novos deploys automáticos via Git na Vercel foram desativados na configuração desta branch, para preparar o início na Hostinger sem continuar publicando a oferta no Hobby. Isso não apaga deploys antigos nem instala a aplicação no VPS. Fonte de configuração: https://vercel.com/docs/project-configuration/git-configuration.

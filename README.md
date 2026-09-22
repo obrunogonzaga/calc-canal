@@ -50,3 +50,7 @@ Copie `.env.example` e configure `NEXT_PUBLIC_SITE_URL` somente após confirmar 
 - [Ficha de decisões e limites desta entrega](docs/milestone-1.md)
 
 Não marcar a prontidão de produção como concluída por um build ou por testes com mocks. Cadastro/pagamento pertencem aos milestones seguintes.
+
+### Hospedagem comercial inicial
+
+O fundador indicou o VPS Hostinger caso o Hobby não permita a operação comercial. A restrição foi confirmada; `vercel.json` desativa novos deploys automáticos via Git. Deploys existentes não são removidos por essa opção. O servidor foi apenas inspecionado: publicação no VPS, domínio, TLS e backup da nova aplicação continuam pendentes.

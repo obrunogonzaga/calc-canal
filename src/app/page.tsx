@@ -205,10 +205,10 @@ export default function Home() {
               </a>
             </article>
             <article className="plan pro-plan">
-              <p className="plan-label">Em preparação · oferta proposta</p>
+              <p className="plan-label">Em preparação · lançamento mensal</p>
               <h3>PreçoPronto PRO</h3>
               <p className="plan-price">
-                R$ 19,90<span>/mês</span>
+                R$ 29,90<span>/mês</span>
               </p>
               <ul>
                 <li>Até 500 produtos salvos</li>
@@ -217,7 +217,7 @@ export default function Home() {
                 <li>Comparação antes e depois do reajuste</li>
               </ul>
               <p className="plan-disclaimer">
-                Preço e limites sujeitos à definição final. Não há assinatura
+                Preço de lançamento definido. Ainda não há assinatura
                 disponível. O Free com conta prevê até 5 produtos.
               </p>
               <Link href="/ajuda#lancamento" className="text-link">

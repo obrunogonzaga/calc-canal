@@ -37,7 +37,7 @@ export default function Help() {
       <p>
         A próxima versão terá conta, catálogo salvo e plano PRO para importação
         CSV e recálculo em lote. Ainda não há cadastro, lista de espera ou
-        cobrança nesta prévia. A oferta mensal exibida é uma proposta; as
+        cobrança nesta prévia. O preço de lançamento é R$ 29,90/mês; as
         condições finais serão informadas antes de qualquer contratação.
       </p>
       <h2>Contato nesta prévia</h2>
