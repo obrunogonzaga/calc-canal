@@ -38,6 +38,9 @@ export default defineConfig({
         "src/lib/server/batch-reprice.ts",
         "src/components/account/AuthForm.tsx",
         "src/components/account/DraftBridge.tsx",
+        "src/components/account/BillingClient.tsx",
+        "src/lib/server/asaas-client.ts",
+        "src/lib/server/billing.ts",
       ],
       reporter: ["text", "json", "html"],
       thresholds: {
