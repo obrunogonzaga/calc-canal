@@ -11,6 +11,7 @@ type BillingStatus = {
   order?: {
     id: string;
     status: string;
+    method?: "card" | "pix";
     link?: string;
     expiresAt?: string;
   };
@@ -100,14 +101,14 @@ export function BillingClient() {
     return () => window.clearInterval(timer);
   }, [status?.order, status?.plan, refresh]);
 
-  async function startCardCheckout() {
+  async function startCheckout(method: "card" | "pix") {
     setBusy(true);
     setError(null);
     try {
       const response = await fetch("/api/billing/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ method: "card" }),
+        body: JSON.stringify({ method }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok)
@@ -156,7 +157,7 @@ export function BillingClient() {
         )}
         {!active && status.order && (
           <p role="status">
-            Pedido de teste {orderStatusLabel(status.order.status)}.
+            Pedido {status.order.method === "pix" ? "Pix" : "cartão"} de teste {orderStatusLabel(status.order.status)}.
             {status.order.expiresAt && ` Checkout válido até ${dateTimeLabel(status.order.expiresAt)}.`}
           </p>
         )}
@@ -168,14 +169,19 @@ export function BillingClient() {
         {!active && status.checkoutEnabled && (
           <>
             <p className="field-hint">
-              Checkout de teste do Asaas: cartão mensal recorrente. Nenhum cartão é informado ao PreçoPronto.
+              Checkout de teste do Asaas. O cartão é mensal recorrente; no Pix, o QR Code e o copia e cola aparecem na página do Asaas. Pix libera um mês após pagamento confirmado e exige renovação manual. Dados de cartão ficam no Asaas.
             </p>
             {link ? (
               <a className="button primary" href={link}>Continuar no Asaas Sandbox</a>
             ) : (
-              <button className="button primary" disabled={busy || staleOrder || status.order?.status === "creating"} onClick={startCardCheckout}>
-                {busy ? "Preparando…" : staleOrder ? "Pedido em conciliação" : status.order?.status === "creating" ? "Aguardando checkout…" : "Testar checkout no Asaas"}
-              </button>
+              <div className="account-actions">
+                <button className="button primary" disabled={busy || staleOrder || status.order?.status === "creating"} onClick={() => startCheckout("card")}>
+                  {busy ? "Preparando…" : staleOrder ? "Pedido em conciliação" : status.order?.status === "creating" ? "Aguardando checkout…" : "Testar cartão no Asaas"}
+                </button>
+                <button className="button secondary" disabled={busy || staleOrder || status.order?.status === "creating"} onClick={() => startCheckout("pix")}>
+                  Testar Pix por um mês
+                </button>
+              </div>
             )}
           </>
         )}

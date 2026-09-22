@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 
-import { createCardCheckout } from "@/lib/server/billing";
+import { createCardCheckout, createPixCheckout } from "@/lib/server/billing";
 
 import {
   billingAuthEnabled,
@@ -41,7 +41,8 @@ export async function POST(request: NextRequest) {
     if (
       !body ||
       typeof body !== "object" ||
-      (body as Record<string, unknown>).method !== "card"
+      ((body as Record<string, unknown>).method !== "card" &&
+        (body as Record<string, unknown>).method !== "pix")
     ) {
       return billingResponse(
         { error: "Método de cobrança inválido.", code: "INVALID_METHOD" },
@@ -49,7 +50,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const checkout = await createCardCheckout(userId);
+    const method = (body as Record<string, "card" | "pix">).method;
+    const checkout =
+      method === "pix"
+        ? await createPixCheckout(userId)
+        : await createCardCheckout(userId);
 
     return billingResponse(checkout, checkout.order.status === "creating" ? 202 : 200);
   } catch (error) {
