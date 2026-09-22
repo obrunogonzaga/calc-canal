@@ -14,7 +14,7 @@ export default async function AccountHome() {
   return (
     <>
       <div className="account-title">
-        <p className="eyebrow">Sua conta gratuita</p>
+        <p className="eyebrow">Sua conta</p>
         <h1>
           Uma conta clara.
           <br />E um lugar para voltar.

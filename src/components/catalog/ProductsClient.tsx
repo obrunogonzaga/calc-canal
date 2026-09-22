@@ -13,6 +13,7 @@ import {
 } from "@/lib/pricing";
 import { resolveFixedFee, type TariffMode, mlDropOffRule } from "@/lib/tariffs";
 import type { SimulationDraft } from "@/lib/simulation-draft";
+import { ImportCsv } from "./ImportCsv";
 
 type Product = {
   id: string;
@@ -411,6 +412,7 @@ export function ProductsClient() {
           )}
         </p>
       )}
+      {data && <ImportCsv plan={data.entitlement.plan} onImported={refresh} />}
       {data?.entitlement.requiresSelection && (
         <section className="selection-banner">
           <h2>Escolha até cinco para continuar editando</h2>

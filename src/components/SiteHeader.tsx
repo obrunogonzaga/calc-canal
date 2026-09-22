@@ -21,7 +21,7 @@ export function SiteHeader() {
             <Link href="/app">Minha conta</Link>
           )}
         </nav>
-        <span className="preview-label">Prévia gratuita</span>
+        <span className="preview-label">Calculadora grátis</span>
       </div>
     </header>
   );

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireVerifiedSession } from "@/lib/server/auth";
+import { getEntitlement } from "@/lib/server/products";
 import { AccountSessionGuard } from "@/components/account/AccountSessionGuard";
 import { SignOut } from "@/components/account/SignOut";
 export const dynamic = "force-dynamic";
@@ -17,8 +18,10 @@ export default async function AccountLayout({
 }) {
   if (process.env.AUTH_ENABLED !== "true") redirect("/entrar");
   let session;
+  let plan: "free" | "pro" = "free";
   try {
     session = await requireVerifiedSession(await headers());
+    if (session) plan = (await getEntitlement(session.user.id)).plan;
   } catch {
     return (
       <main id="conteudo" className="shell prose">
@@ -36,7 +39,7 @@ export default async function AccountLayout({
     <main id="conteudo" className="shell account-shell">
       <AccountSessionGuard />
       <aside className="account-nav">
-        <p className="eyebrow">Seu espaço · Free</p>
+        <p className="eyebrow">Seu espaço · {plan === "pro" ? "PRO" : "Free"}</p>
         <nav aria-label="Sua conta">
           <Link href="/app">Simulações</Link>
           <Link href="/app/produtos">Produtos</Link>
