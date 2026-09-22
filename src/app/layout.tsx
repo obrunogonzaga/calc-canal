@@ -1,41 +1,40 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist } from "next/font/google";
+import { SiteFooter, SiteHeader } from "@/components/SiteHeader";
+import { getSiteOrigin } from "@/lib/site";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
+const geist = Geist({ variable: "--font-geist", subsets: ["latin"] });
+const origin = getSiteOrigin();
 export const metadata: Metadata = {
-  title: "Calculadora de preço marketplace | CalcCanal",
+  metadataBase: origin ? new URL(origin) : undefined,
+  title: {
+    default: "PreçoPronto — calculadora de preços para marketplaces",
+    template: "%s | PreçoPronto",
+  },
   description:
-    "Calcule preço de venda e lucro líquido no Mercado Livre, Shopee, Amazon Brasil e Magalu. Precificação para sellers BR.",
+    "Calcule seu preço de venda, entenda quanto sobra e confira cada custo. Simulação gratuita para vendedores de marketplaces, sem cadastro.",
+  robots: origin
+    ? { index: true, follow: true }
+    : { index: false, follow: false },
   openGraph: {
-    title: "Calculadora de preço marketplace | CalcCanal",
+    title: "PreçoPronto — mais clareza em cada preço",
     description:
-      "Precificação marketplace BR: ML, Shopee, Amazon e Magalu em um clique.",
+      "Seu custo, suas taxas e sua margem. Faça uma simulação gratuita, sem cadastro.",
     locale: "pt_BR",
     type: "website",
+    siteName: "PreçoPronto",
   },
 };
-
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="pt-BR">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen`}
-      >
+    <html lang="pt-BR" data-scroll-behavior="smooth">
+      <body className={geist.variable}>
+        <SiteHeader />
         {children}
+        <SiteFooter />
       </body>
     </html>
   );

@@ -1,31 +1,6 @@
 {
-  "_comment": "Defaults típicos BR para MVP. Comissões variam por categoria, plano do seller e política vigente — sempre conferir no painel oficial do marketplace.",
-  "mercado_livre": {
-    "id": "mercado_livre",
-    "label": "Mercado Livre",
-    "commissionPercent": 16,
-    "fixedFee": 6,
-    "sourceNote": "Referência: tarifa clássica ~16% + taxa fixa por faixa de preço (valor médio ilustrativo R$ 6). Fonte incerta — ML atualiza faixas frequentemente."
-  },
-  "shopee": {
-    "id": "shopee",
-    "label": "Shopee",
-    "commissionPercent": 14,
-    "fixedFee": 4,
-    "sourceNote": "Referência: comissão ~12–20% + taxa transação. Default 14% + R$ 4 ilustrativo."
-  },
-  "amazon_br": {
-    "id": "amazon_br",
-    "label": "Amazon Brasil",
-    "commissionPercent": 15,
-    "fixedFee": 2,
-    "sourceNote": "Referência: referral fee por categoria (~10–15%) + possível taxa de fechamento. Default 15% + R$ 2 ilustrativo."
-  },
-  "magalu": {
-    "id": "magalu",
-    "label": "Magalu",
-    "commissionPercent": 18,
-    "fixedFee": 0,
-    "sourceNote": "Referência: comissão marketplace ~16–20%. Default 18%, sem taxa fixa no MVP."
-  }
+  "mercado_livre": { "label": "Mercado Livre" },
+  "shopee": { "label": "Shopee" },
+  "amazon_br": { "label": "Amazon" },
+  "magalu": { "label": "Magalu" }
 }
