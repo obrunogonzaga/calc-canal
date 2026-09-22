@@ -23,7 +23,8 @@ describe("BillingClient", () => {
     render(<BillingClient />);
     expect(await screen.findByText(/R\$ 29,90 por mês/)).toBeInTheDocument();
     expect(screen.getByText(/ainda está em homologação/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Testar checkout/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Testar cartão/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Testar Pix/ })).not.toBeInTheDocument();
   });
 
   it("successReturn_withoutWebhook_keepsFreePlan", async () => {
@@ -47,8 +48,8 @@ describe("BillingClient", () => {
     );
     const user = userEvent.setup();
     render(<BillingClient />);
-    await user.click(await screen.findByRole("button", { name: "Testar checkout no Asaas" }));
-    expect(await screen.findByText(/Pedido de teste em preparação/)).toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: "Testar cartão no Asaas" }));
+    expect(await screen.findByText(/Pedido cartão de teste em preparação/)).toBeInTheDocument();
     expect(screen.queryByText(/Seu catálogo PRO está disponível/)).not.toBeInTheDocument();
   });
 
@@ -59,7 +60,26 @@ describe("BillingClient", () => {
       order: { id: "order-1", status: "failed", link: "https://sandbox.asaas.com/checkoutSession/show/old" },
     }));
     render(<BillingClient />);
-    expect(await screen.findByRole("button", { name: "Testar checkout no Asaas" })).toBeEnabled();
+    expect(await screen.findByRole("button", { name: "Testar cartão no Asaas" })).toBeEnabled();
     expect(screen.queryByRole("link", { name: "Continuar no Asaas Sandbox" })).not.toBeInTheDocument();
+  });
+
+  it("startPixCheckout_sendsPixAndKeepsManualRenewalVisible", async () => {
+    vi.mocked(fetch).mockImplementation(async (_input, init) =>
+      init?.method === "POST"
+        ? response({
+            plan: "free",
+            checkoutEnabled: true,
+            order: { id: "order-pix", method: "pix", status: "creating" },
+          }, 202)
+        : response({ plan: "free", checkoutEnabled: true }),
+    );
+    const user = userEvent.setup();
+    render(<BillingClient />);
+    await user.click(await screen.findByRole("button", { name: "Testar Pix por um mês" }));
+    expect(await screen.findByText(/Pedido Pix de teste em preparação/)).toBeInTheDocument();
+    expect(screen.getByText(/renovação manual/)).toBeInTheDocument();
+    const [, init] = vi.mocked(fetch).mock.calls.find(([, options]) => options?.method === "POST")!;
+    expect(JSON.parse(String(init?.body))).toEqual({ method: "pix" });
   });
 });

@@ -11,6 +11,7 @@ config({ path: ".env.local", quiet: true });
 const isolated = vi.hoisted(() => ({
   pool: null as Pool | null,
   checkout: vi.fn(),
+  pixCheckout: vi.fn(),
 }));
 
 vi.mock("./db", () => ({
@@ -35,12 +36,14 @@ vi.mock("./asaas-client", () => ({
   },
   createAsaasSandboxClient: () => ({
     createRecurringCardCheckout: isolated.checkout,
+    createPixCheckout: isolated.pixCheckout,
   }),
 }));
 
 import {
   addOneCalendarMonth,
   createCardCheckout,
+  createPixCheckout,
   getBillingStatus,
   processAsaasCheckoutWebhook,
   saoPauloToday,
@@ -167,20 +170,29 @@ suite("billing integration", () => {
 
     const url = testDatabaseUrl();
     isolated.pool = new Pool({ connectionString: url.toString() });
-    const [productsSql, billingSql] = await Promise.all([
+    const [productsSql, billingSql, pixBillingSql] = await Promise.all([
       readFile(new URL("../../../migrations/0002_products.sql", import.meta.url), "utf8"),
       readFile(new URL("../../../migrations/0005_billing.sql", import.meta.url), "utf8"),
+      readFile(new URL("../../../migrations/0006_pix_billing.sql", import.meta.url), "utf8"),
     ]);
 
     await isolated.pool.query(productsSql);
     await isolated.pool.query(billingSql);
+    await isolated.pool.query(pixBillingSql);
   });
 
   beforeEach(() => {
     isolated.checkout.mockReset();
+    isolated.pixCheckout.mockReset();
     isolated.checkout.mockImplementation(async (input: { externalReference: string }) => ({
       id: `checkout-${randomUUID()}`,
       link: "https://sandbox.asaas.com/checkoutSession/show/test",
+      status: "ACTIVE",
+      externalReference: input.externalReference,
+    }));
+    isolated.pixCheckout.mockImplementation(async (input: { externalReference: string }) => ({
+      id: `pix-${randomUUID()}`,
+      link: "https://sandbox.asaas.com/checkoutSession/show/pix-test",
       status: "ACTIVE",
       externalReference: input.externalReference,
     }));
@@ -253,6 +265,158 @@ suite("billing integration", () => {
       order: { id: checkout.order.id, status: "checkout_created" },
     });
     expect(isolated.checkout).toHaveBeenCalledOnce();
+  });
+
+  it("createPixCheckout_createsPixOrderAndRejectsMethodMixWhileOpen", async () => {
+    const actor = await createActor("billing-pix-method");
+    const pix = await createPixCheckout(actor);
+
+    await expect(createCardCheckout(actor)).rejects.toMatchObject({
+      code: "BILLING_METHOD_CONFLICT",
+    });
+
+    expect(pix.order).toMatchObject({ method: "pix", status: "checkout_created" });
+    expect(isolated.pixCheckout).toHaveBeenCalledOnce();
+    expect(isolated.checkout).not.toHaveBeenCalled();
+  });
+
+  it("processAsaasCheckoutWebhook_pixPaidGrantsOneMonthAndLatePaymentWinsExpiry", async () => {
+    const actor = await createActor("billing-pix-late");
+    const pix = await createPixCheckout(actor);
+    const stored = await orderRow(pix.order.id);
+    const order = { id: pix.order.id, checkoutId: stored!.checkout_id! };
+
+    const expired = await processAsaasCheckoutWebhook(
+      checkoutPayload(order, {
+        event: "CHECKOUT_EXPIRED",
+        eventId: eventId("evt-pix-expired"),
+        billingTypes: ["PIX"],
+        chargeTypes: ["DETACHED"],
+      }),
+    );
+    const latePaid = await processAsaasCheckoutWebhook(
+      checkoutPayload(order, {
+        event: "CHECKOUT_PAID",
+        eventId: eventId("evt-pix-late-paid"),
+        billingTypes: ["PIX"],
+        chargeTypes: ["DETACHED"],
+      }),
+    );
+    const duplicate = await processAsaasCheckoutWebhook(
+      checkoutPayload(order, {
+        event: "CHECKOUT_PAID",
+        eventId: eventId("evt-pix-late-paid-second"),
+        billingTypes: ["PIX"],
+        chargeTypes: ["DETACHED"],
+      }),
+    );
+    const status = await getBillingStatus(actor);
+
+    expect(expired).toMatchObject({ outcome: "checkout_expired", granted: false });
+    expect(latePaid).toMatchObject({ outcome: "paid", granted: true });
+    expect(duplicate).toMatchObject({ outcome: "already_paid", granted: false });
+    expect(status).toMatchObject({ plan: "pro", order: { method: "pix" } });
+    expect(status.paidUntil).toBeTruthy();
+  });
+
+  it("createPixCheckout_manualRenewalOnlyAfterCurrentPeriodExpires", async () => {
+    const actor = await createActor("billing-pix-renewal");
+    const pix = await createPixCheckout(actor);
+    const stored = await orderRow(pix.order.id);
+
+    await processAsaasCheckoutWebhook(
+      checkoutPayload(
+        { id: pix.order.id, checkoutId: stored!.checkout_id! },
+        {
+          eventId: eventId("evt-pix-renewal-first-paid"),
+          billingTypes: ["PIX"],
+          chargeTypes: ["DETACHED"],
+        },
+      ),
+    );
+
+    await expect(createPixCheckout(actor)).rejects.toMatchObject({
+      code: "BILLING_ALREADY_PRO",
+    });
+
+    await isolated.pool!.query(
+      "UPDATE account_entitlement SET expires_at = NOW() - INTERVAL '1 second' WHERE user_id = $1",
+      [actor],
+    );
+
+    const renewal = await createPixCheckout(actor);
+
+    expect(renewal.order).toMatchObject({ method: "pix", status: "checkout_created" });
+  });
+
+  it("processAsaasCheckoutWebhook_latePixAndSecondOrderGrantOnlyOneRight", async () => {
+    const actor = await createActor("billing-pix-double");
+    const pix = await createPixCheckout(actor);
+    const pixStored = await orderRow(pix.order.id);
+    const pixOrder = { id: pix.order.id, checkoutId: pixStored!.checkout_id! };
+
+    await processAsaasCheckoutWebhook(
+      checkoutPayload(pixOrder, {
+        event: "CHECKOUT_EXPIRED",
+        eventId: eventId("evt-double-expired"),
+        billingTypes: ["PIX"],
+        chargeTypes: ["DETACHED"],
+      }),
+    );
+
+    const secondPix = await createPixCheckout(actor);
+    const secondPixStored = await orderRow(secondPix.order.id);
+    const secondPixOrder = {
+      id: secondPix.order.id,
+      checkoutId: secondPixStored!.checkout_id!,
+    };
+
+    const pixPaid = await processAsaasCheckoutWebhook(
+      checkoutPayload(pixOrder, {
+        event: "CHECKOUT_PAID",
+        eventId: eventId("evt-double-second-pix-paid"),
+        billingTypes: ["PIX"],
+        chargeTypes: ["DETACHED"],
+      }),
+    );
+    const paidUntil = (await getBillingStatus(actor)).paidUntil;
+    const secondPixPaid = await processAsaasCheckoutWebhook(
+      checkoutPayload(secondPixOrder, {
+        event: "CHECKOUT_PAID",
+        eventId: eventId("evt-double-pix-paid"),
+        billingTypes: ["PIX"],
+        chargeTypes: ["DETACHED"],
+      }),
+    );
+    const status = await getBillingStatus(actor);
+
+    expect(pixPaid).toMatchObject({ granted: true, outcome: "paid" });
+    expect(secondPixPaid).toMatchObject({
+      granted: false,
+      outcome: "paid_duplicate_financial",
+    });
+    expect((await orderRow(pixOrder.id))?.status).toBe("paid");
+    expect((await orderRow(secondPixOrder.id))?.status).toBe("paid");
+    expect(status.paidUntil).toBe(paidUntil);
+  });
+
+  it("processAsaasCheckoutWebhook_cardOrderRejectsPixPayload", async () => {
+    const actor = await createActor("billing-card-pix-spoof");
+    const card = await createCardCheckout(actor);
+    const stored = await orderRow(card.order.id);
+    const result = await processAsaasCheckoutWebhook(
+      checkoutPayload(
+        { id: card.order.id, checkoutId: stored!.checkout_id! },
+        {
+          eventId: eventId("evt-card-with-pix"),
+          billingTypes: ["PIX"],
+          chargeTypes: ["DETACHED"],
+        },
+      ),
+    );
+
+    expect(result).toMatchObject({ granted: false, outcome: "rejected_offer" });
+    expect((await getBillingStatus(actor)).plan).toBe("free");
   });
 
   it("processAsaasCheckoutWebhook_paidGrantsOnceAndDoesNotRegress", async () => {

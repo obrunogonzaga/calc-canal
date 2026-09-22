@@ -17,6 +17,7 @@ type BillingErrorCode =
   | "BILLING_CHECKOUT_DISABLED"
   | "BILLING_CHECKOUT_FAILED"
   | "BILLING_CONFIGURATION_ERROR"
+  | "BILLING_METHOD_CONFLICT"
   | "BILLING_ORDER_NOT_FOUND"
   | "BILLING_WEBHOOK_INVALID"
   | "BILLING_WEBHOOK_RETRY";
@@ -32,6 +33,7 @@ export class BillingError extends Error {
 
 export interface BillingOrderView {
   id: string;
+  method: "card" | "pix";
   status: "creating" | "checkout_created" | "paid" | "failed";
   link?: string;
   expiresAt?: string;
@@ -60,6 +62,7 @@ interface BillingOrderRow {
   id: string;
   user_id: string;
   external_reference: string;
+  method: "card" | "pix";
   status: BillingOrderView["status"];
   checkout_id: string | null;
   checkout_link: string | null;
@@ -214,6 +217,7 @@ export function addOneCalendarMonth(date = new Date()): Date {
 function orderView(row: BillingOrderRow): BillingOrderView {
   return {
     id: row.id,
+    method: row.method,
     status: row.status,
     ...(row.checkout_link ? { link: row.checkout_link } : {}),
     ...(row.status === "creating" || row.status === "checkout_created"
@@ -252,7 +256,7 @@ async function latestOrder(
   const result = await client.query<BillingOrderRow>(
     `
       SELECT
-        id, user_id, external_reference, status, checkout_id, checkout_link,
+        id, user_id, external_reference, method, status, checkout_id, checkout_link,
         checkout_expires_at, provider_status, subscription_id, period_end
       FROM billing_order
       WHERE user_id = $1
@@ -307,7 +311,7 @@ export async function getBillingStatus(userId: string): Promise<BillingStatus> {
   }
 }
 
-async function createPendingOrder(userId: string): Promise<{
+async function createPendingOrder(userId: string, method: "card" | "pix"): Promise<{
   order: BillingOrderRow;
   shouldCreateCheckout: boolean;
 }> {
@@ -325,7 +329,7 @@ async function createPendingOrder(userId: string): Promise<{
     const open = await client.query<BillingOrderRow>(
       `
         SELECT
-          id, user_id, external_reference, status, checkout_id, checkout_link,
+          id, user_id, external_reference, method, status, checkout_id, checkout_link,
           checkout_expires_at, provider_status, subscription_id, period_end
         FROM billing_order
         WHERE user_id = $1 AND status IN ('creating', 'checkout_created')
@@ -337,6 +341,13 @@ async function createPendingOrder(userId: string): Promise<{
     );
 
     if (open.rows[0]) {
+      if (open.rows[0].method !== method) {
+        return billingError(
+          "BILLING_METHOD_CONFLICT",
+          "Existe um checkout pendente com outro método de pagamento.",
+        );
+      }
+
       // A local expiration does not prove that the provider failed to create
       // or process this checkout. Keep it blocked until reconciliation is
       // available in the subscription/payment flow (#13), rather than risk a
@@ -351,12 +362,12 @@ async function createPendingOrder(userId: string): Promise<{
         INSERT INTO billing_order (
           id, user_id, external_reference, method, amount_cents, currency,
           status, checkout_expires_at
-        ) VALUES ($1, $2, $3, 'card', $4, 'BRL', 'creating', $5)
+        ) VALUES ($1, $2, $3, $4, $5, 'BRL', 'creating', $6)
         RETURNING
-          id, user_id, external_reference, status, checkout_id, checkout_link,
+          id, user_id, external_reference, method, status, checkout_id, checkout_link,
           checkout_expires_at, provider_status, subscription_id, period_end
       `,
-      [id, userId, externalReference(id), BILLING_AMOUNT_CENTS, expiresAt],
+      [id, userId, externalReference(id), method, BILLING_AMOUNT_CENTS, expiresAt],
     );
 
     return { order: result.rows[0]!, shouldCreateCheckout: true };
@@ -367,7 +378,7 @@ async function readOrder(orderId: string): Promise<BillingOrderRow> {
   const result = await getDb().query<BillingOrderRow>(
     `
       SELECT
-        id, user_id, external_reference, status, checkout_id, checkout_link,
+        id, user_id, external_reference, method, status, checkout_id, checkout_link,
         checkout_expires_at, provider_status, subscription_id, period_end
       FROM billing_order
       WHERE id = $1
@@ -391,7 +402,7 @@ async function persistCheckout(
     const result = await client.query<BillingOrderRow>(
       `
         SELECT
-          id, user_id, external_reference, status, checkout_id, checkout_link,
+          id, user_id, external_reference, method, status, checkout_id, checkout_link,
           checkout_expires_at, provider_status, subscription_id, period_end
         FROM billing_order
         WHERE id = $1
@@ -423,7 +434,7 @@ async function persistCheckout(
           updated_at = NOW()
         WHERE id = $1
         RETURNING
-          id, user_id, external_reference, status, checkout_id, checkout_link,
+          id, user_id, external_reference, method, status, checkout_id, checkout_link,
           checkout_expires_at, provider_status, subscription_id, period_end
       `,
       [orderId, checkout.id, checkout.link, checkout.status],
@@ -453,8 +464,9 @@ async function markCheckoutFailed(orderId: string, code: string): Promise<void> 
   );
 }
 
-export async function createCardCheckout(
+async function createCheckout(
   userId: string,
+  method: "card" | "pix",
 ): Promise<BillingCheckoutResult> {
   if (!isSandboxCheckoutEnabled()) {
     return billingError(
@@ -463,7 +475,7 @@ export async function createCardCheckout(
     );
   }
 
-  const pending = await createPendingOrder(userId);
+  const pending = await createPendingOrder(userId, method);
 
   if (!pending.shouldCreateCheckout) {
     const status = await getBillingStatus(userId);
@@ -481,15 +493,24 @@ export async function createCardCheckout(
   const baseUrl = configuredBaseUrl();
 
   try {
-    const checkout = await createAsaasSandboxClient().createRecurringCardCheckout({
-      externalReference: pending.order.external_reference,
-      callbacks: {
-        successUrl: `${baseUrl}/app/plano?retorno=sucesso`,
-        cancelUrl: `${baseUrl}/app/plano?retorno=cancelado`,
-        expiredUrl: `${baseUrl}/app/plano?retorno=expirado`,
-      },
-      nextDueDate: saoPauloToday(),
-    });
+    const callbacks = {
+      successUrl: `${baseUrl}/app/plano?retorno=sucesso`,
+      cancelUrl: `${baseUrl}/app/plano?retorno=cancelado`,
+      expiredUrl: `${baseUrl}/app/plano?retorno=expirado`,
+    };
+    const asaas = createAsaasSandboxClient();
+    const checkout =
+      method === "card"
+        ? await asaas.createRecurringCardCheckout({
+            externalReference: pending.order.external_reference,
+            callbacks,
+            nextDueDate: saoPauloToday(),
+          })
+        : await asaas.createPixCheckout({
+            externalReference: pending.order.external_reference,
+            callbacks,
+            minutesToExpire: CHECKOUT_EXPIRATION_MINUTES,
+          });
     const order = await persistCheckout(pending.order.id, checkout);
     const status = await getBillingStatus(userId);
 
@@ -509,6 +530,18 @@ export async function createCardCheckout(
       "Não foi possível criar o checkout Sandbox. Tente novamente.",
     );
   }
+}
+
+export async function createCardCheckout(
+  userId: string,
+): Promise<BillingCheckoutResult> {
+  return createCheckout(userId, "card");
+}
+
+export async function createPixCheckout(
+  userId: string,
+): Promise<BillingCheckoutResult> {
+  return createCheckout(userId, "pix");
 }
 
 function webhookConfigurationToken(): string {
@@ -613,13 +646,16 @@ function parseWebhookPayload(value: unknown): WebhookPayload {
   };
 }
 
-function isPaidCheckoutOfferValid(checkout: WebhookPayload["checkout"]): boolean {
+function isPaidCheckoutOfferValid(
+  checkout: WebhookPayload["checkout"],
+  method: BillingOrderRow["method"],
+): boolean {
   const item = checkout.items?.[0];
   const valueCents = item?.value === undefined ? undefined : Math.round(item.value * 100);
 
   return (
-    checkout.billingTypes?.includes("CREDIT_CARD") === true &&
-    checkout.chargeTypes?.includes("RECURRENT") === true &&
+    checkout.billingTypes?.includes(method === "card" ? "CREDIT_CARD" : "PIX") === true &&
+    checkout.chargeTypes?.includes(method === "card" ? "RECURRENT" : "DETACHED") === true &&
     checkout.items?.length === 1 &&
     item?.name === "PreçoPronto PRO" &&
     item.quantity === 1 &&
@@ -630,28 +666,30 @@ function isPaidCheckoutOfferValid(checkout: WebhookPayload["checkout"]): boolean
 async function lockOrderForWebhook(
   client: PoolClient,
   payload: WebhookPayload,
+  forUpdate = false,
 ): Promise<BillingOrderRow | undefined> {
+  const lockClause = forUpdate ? "FOR UPDATE" : "";
   const referencedId = parseOrderReference(payload.checkout.externalReference);
   const result = referencedId
     ? await client.query<BillingOrderRow>(
         `
           SELECT
-            id, user_id, external_reference, status, checkout_id, checkout_link,
+            id, user_id, external_reference, method, status, checkout_id, checkout_link,
             checkout_expires_at, provider_status, subscription_id, period_end
           FROM billing_order
           WHERE id = $1
-          FOR UPDATE
+          ${lockClause}
         `,
         [referencedId],
       )
     : await client.query<BillingOrderRow>(
         `
           SELECT
-            id, user_id, external_reference, status, checkout_id, checkout_link,
+            id, user_id, external_reference, method, status, checkout_id, checkout_link,
             checkout_expires_at, provider_status, subscription_id, period_end
           FROM billing_order
           WHERE checkout_id = $1
-          FOR UPDATE
+          ${lockClause}
         `,
         [payload.checkout.id],
       );
@@ -695,7 +733,33 @@ async function grantFirstPeriod(
   client: PoolClient,
   order: BillingOrderRow,
   payload: WebhookPayload,
-): Promise<void> {
+): Promise<boolean> {
+  const activeUntil = await getActiveEntitlement(client, order.user_id);
+
+  if (isActivePro(activeUntil)) {
+    await client.query(
+      `
+        UPDATE billing_order
+        SET
+          checkout_id = COALESCE(checkout_id, $2),
+          provider_status = $3,
+          subscription_id = COALESCE(subscription_id, $4),
+          status = 'paid',
+          paid_at = NOW(),
+          updated_at = NOW()
+        WHERE id = $1
+      `,
+      [
+        order.id,
+        payload.checkout.id,
+        payload.checkout.status ?? "PAID",
+        payload.checkout.subscriptionId ?? null,
+      ],
+    );
+
+    return false;
+  }
+
   const periodStart = new Date();
   const periodEnd = addOneCalendarMonth(periodStart);
 
@@ -731,6 +795,8 @@ async function grantFirstPeriod(
     `,
     [order.user_id, periodEnd],
   );
+
+  return true;
 }
 
 export async function processAsaasCheckoutWebhook(
@@ -757,9 +823,9 @@ export async function processAsaasCheckoutWebhook(
       return { duplicate: true, granted: false, outcome: "duplicate" };
     }
 
-    const order = await lockOrderForWebhook(client, payload);
+    const discoveredOrder = await lockOrderForWebhook(client, payload);
 
-    if (!order) {
+    if (!discoveredOrder) {
       if (payload.event === "CHECKOUT_PAID") {
         // Do not deduplicate an uncorrelated paid event: the provider must be
         // able to retry after the checkout id/external reference is persisted.
@@ -773,8 +839,25 @@ export async function processAsaasCheckoutWebhook(
       return { duplicate: false, granted: false, outcome: "unmatched" };
     }
 
+    // Keep the same user → order lock order used by checkout creation, so a
+    // paid webhook and a new checkout cannot deadlock or grant twice.
+    await lockUser(client, discoveredOrder.user_id);
+    const order = await lockOrderForWebhook(client, payload, true);
+
+    if (!order) {
+      if (payload.event === "CHECKOUT_PAID") {
+        return billingError(
+          "BILLING_WEBHOOK_RETRY",
+          "Evento pago sem correlação segura com o pedido.",
+        );
+      }
+
+      await recordWebhookOutcome(client, payload.id, undefined, "unmatched");
+      return { duplicate: false, granted: false, outcome: "unmatched" };
+    }
+
     if (payload.event === "CHECKOUT_PAID") {
-      if (!isPaidCheckoutOfferValid(payload.checkout)) {
+      if (!isPaidCheckoutOfferValid(payload.checkout, order.method)) {
         await recordWebhookOutcome(client, payload.id, order.id, "rejected_offer");
         return { duplicate: false, granted: false, outcome: "rejected_offer" };
       }
@@ -784,9 +867,10 @@ export async function processAsaasCheckoutWebhook(
         return { duplicate: false, granted: false, outcome: "already_paid" };
       }
 
-      await grantFirstPeriod(client, order, payload);
-      await recordWebhookOutcome(client, payload.id, order.id, "paid");
-      return { duplicate: false, granted: true, outcome: "paid" };
+      const granted = await grantFirstPeriod(client, order, payload);
+      const outcome = granted ? "paid" : "paid_duplicate_financial";
+      await recordWebhookOutcome(client, payload.id, order.id, outcome);
+      return { duplicate: false, granted, outcome };
     }
 
     if (order.status === "paid") {
