@@ -75,10 +75,17 @@ export default async function AccountHome() {
             ))}
           </ul>
         )}
-        <p className="field-hint">
-          Até 10 simulações nesta prévia. O catálogo de produtos será
-          disponibilizado na próxima etapa.
+        <p className="field-hint">Até 10 simulações nesta prévia.</p>
+      </section>
+      <section className="account-empty">
+        <h2>Organize seus produtos</h2>
+        <p>
+          Salve custo, taxas e margem de até cinco produtos no Free. Ao mudar o
+          custo, revise o preço antes de atualizar seu anúncio.
         </p>
+        <Link className="button primary" href="/app/produtos">
+          Abrir catálogo
+        </Link>
       </section>
     </>
   );
