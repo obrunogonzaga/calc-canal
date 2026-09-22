@@ -14,6 +14,7 @@ import {
 import { resolveFixedFee, type TariffMode, mlDropOffRule } from "@/lib/tariffs";
 import type { SimulationDraft } from "@/lib/simulation-draft";
 import { ImportCsv } from "./ImportCsv";
+import { BatchReprice } from "./BatchReprice";
 
 type Product = {
   id: string;
@@ -323,6 +324,34 @@ export function ProductsClient() {
       setBusy(false);
     }
   }
+  async function exportCsv(ids?: string[]) {
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/produtos/exportar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(ids ? { ids } : {}),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error || "Não foi possível exportar o CSV.");
+      }
+      const url = URL.createObjectURL(await response.blob());
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "precos-preco-pronto.csv";
+      anchor.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setNotice("CSV gerado. Confira os preços antes de atualizar seus anúncios.");
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Não foi possível exportar o CSV.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
   function input(key: keyof Inputs, placeholder?: string) {
     return (
       <div className="field">
@@ -401,6 +430,14 @@ export function ProductsClient() {
         >
           Novo produto
         </button>
+        <button
+          type="button"
+          className="button secondary"
+          onClick={() => void exportCsv()}
+          disabled={busy || loading}
+        >
+          Exportar catálogo
+        </button>
       </div>
       {data && (
         <p className="catalog-count" role="status">
@@ -428,6 +465,23 @@ export function ProductsClient() {
             Manter {selected.length} editável(is)
           </button>
         </section>
+      )}
+      {data?.entitlement.plan === "pro" && selected.length > 0 && (
+        <>
+          <button
+            type="button"
+            className="button secondary"
+            onClick={() => void exportCsv(selected)}
+            disabled={busy}
+          >
+            Exportar {selected.length} selecionado(s)
+          </button>
+          <BatchReprice
+            key={selected.join(",")}
+            ids={selected}
+            onCommitted={refresh}
+          />
+        </>
       )}
       {notice && (
         <p role="status" className="success-banner">
@@ -585,7 +639,7 @@ export function ProductsClient() {
           {items.map((p) => (
             <li key={p.id} className={p.archivedAt ? "archived" : ""}>
               <div className="catalog-product-head">
-                {data?.entitlement.requiresSelection && !p.archivedAt && (
+                {(data?.entitlement.requiresSelection || data?.entitlement.plan === "pro") && !p.archivedAt && (
                   <label className="catalog-selector">
                     <input
                       type="checkbox"
@@ -599,7 +653,7 @@ export function ProductsClient() {
                       }
                     />
                     <span className="sr-only">
-                      Selecionar {p.name} para edição
+                      Selecionar {p.name} {data?.entitlement.plan === "pro" ? "para operação em lote" : "para edição"}
                     </span>
                   </label>
                 )}
