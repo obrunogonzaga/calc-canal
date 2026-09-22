@@ -1596,6 +1596,63 @@ dd {
   padding: 20px;
   color: var(--muted);
 }
+.catalog-import {
+  padding: 20px 24px;
+  margin-block: 16px 22px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: white;
+}
+.catalog-import .account-section-heading {
+  align-items: center;
+}
+.catalog-import .account-section-heading h2 {
+  margin-top: 3px;
+}
+.catalog-import-form {
+  margin-top: 18px;
+}
+.catalog-import-form .fields-grid {
+  margin-block: 14px;
+}
+.catalog-import-form .checkbox-field {
+  margin-block: 18px;
+}
+.catalog-import-preview {
+  margin-top: 22px;
+}
+.catalog-import-preview h3 {
+  font-size: 1rem;
+}
+.catalog-import-preview > p {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+.catalog-import-table-wrap {
+  overflow-x: auto;
+  margin-block: 13px;
+  border: 1px solid var(--line);
+  max-height: 360px;
+  overflow-y: auto;
+}
+.catalog-import-table-wrap table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 680px;
+  font-size: 0.74rem;
+}
+.catalog-import-table-wrap th,
+.catalog-import-table-wrap td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+.catalog-import-table-wrap th {
+  position: sticky;
+  top: 0;
+  background: white;
+}
 @media (max-width: 700px) {
   .catalog-tools {
     align-items: stretch;
@@ -1614,5 +1671,8 @@ dd {
   }
   .catalog-values > span {
     flex-basis: 45%;
+  }
+  .catalog-import {
+    padding: 18px 14px;
   }
 }
