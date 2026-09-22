@@ -7,6 +7,30 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: precopronto_test
+          POSTGRES_PASSWORD: ci-ephemeral-test-only
+          POSTGRES_DB: precopronto_integration
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U precopronto_test -d precopronto_integration"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      APP_ENV: local
+      AUTH_ENABLED: "true"
+      BETTER_AUTH_URL: http://localhost:3101
+      DATABASE_URL: postgresql://precopronto_test:ci-ephemeral-test-only@127.0.0.1:5432/precopronto_integration
+      TEST_DATABASE_URL: postgresql://precopronto_test:ci-ephemeral-test-only@127.0.0.1:5432/precopronto_integration
+      SMTP_HOST: 127.0.0.1
+      SMTP_PORT: "11025"
+      SMTP_SECURE: "false"
+      SMTP_FROM: "PreçoPronto <nao-responda@precopronto.test>"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -14,8 +38,14 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Generate isolated test secret
+        run: node -e "require('fs').appendFileSync(process.env.GITHUB_ENV, 'BETTER_AUTH_SECRET='+require('crypto').randomBytes(48).toString('base64url')+'\n')"
+      - run: npm run db:migrate
+      - name: Start loopback-only SMTP sink
+        run: |
+          npm run mailbox > /tmp/precopronto-mailbox.log 2>&1 &
+          node -e "(async()=>{for(let i=0;i<20;i++){try{if((await fetch('http://127.0.0.1:18025/messages')).ok)return}catch{}await new Promise(r=>setTimeout(r,250))}process.exit(1)})()"
       - run: npm run lint
       - run: npm run typecheck
-      - run: npm run test
       - run: npm run test:coverage
       - run: npm run build

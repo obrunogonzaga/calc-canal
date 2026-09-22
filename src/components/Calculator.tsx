@@ -10,6 +10,7 @@ import {
   type PricingBreakdown,
 } from "@/lib/pricing";
 import { parseBRNumber } from "@/lib/numbers";
+import { DRAFT_KEY, type SimulationDraft } from "@/lib/simulation-draft";
 import {
   isRuleCurrent,
   mlDropOffRule,
@@ -54,12 +55,19 @@ export interface SimulationSnapshot {
   assumptions: string[];
 }
 
-export function Calculator() {
+export function Calculator({
+  allowAccount = false,
+  accountMode = false,
+}: {
+  allowAccount?: boolean;
+  accountMode?: boolean;
+}) {
   const [channel, setChannel] = useState<ChannelId>("mercado_livre");
   const [mode, setMode] = useState<CalcMode>("margin_to_price");
   const [values, setValues] = useState(initialValues);
   const [excludeTax, setExcludeTax] = useState(false);
   const [snapshot, setSnapshot] = useState<SimulationSnapshot | null>(null);
+  const [draft, setDraft] = useState<SimulationDraft | null>(null);
   const [errors, setErrors] = useState<Partial<Record<FieldName, string>>>({});
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -76,6 +84,7 @@ export function Calculator() {
   function invalidate() {
     revision.current++;
     setSnapshot(null);
+    setDraft(null);
     setError(null);
     setErrors({});
   }
@@ -107,6 +116,7 @@ export function Calculator() {
     setError(null);
     setErrors({});
     setSnapshot(null);
+    setDraft(null);
     const nextErrors: Partial<Record<FieldName, string>> = {};
     const parsed = {} as Record<FieldName, number>;
     for (const name of Object.keys(fields) as FieldName[]) {
@@ -140,11 +150,20 @@ export function Calculator() {
         parsed.fixedFee,
         confirmedDropOff,
       );
-      const breakdown = calculatePricing({
+      const input = {
         ...parsed,
         fixedFee: tariff.amount,
         desiredMarginPercent: parsed.desiredMargin,
         mode,
+      };
+      const breakdown = calculatePricing(input);
+      setDraft({
+        version: 1,
+        channelId: channel,
+        input,
+        tariffMode,
+        confirmedDropOff,
+        excludeTax,
       });
       setSnapshot({
         channel: channels[channel].label,
@@ -183,6 +202,18 @@ export function Calculator() {
           : "Não foi possível calcular. Revise os valores.",
       );
       requestAnimationFrame(() => errorRef.current?.focus());
+    }
+  }
+
+  function continueInAccount() {
+    if (!draft || !snapshot) return;
+    try {
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+      window.location.assign(accountMode ? "/app" : "/cadastro");
+    } catch {
+      setError(
+        "Não foi possível guardar o rascunho nesta aba. Verifique o armazenamento do navegador e tente novamente.",
+      );
     }
   }
 
@@ -501,6 +532,17 @@ export function Calculator() {
               >
                 {exporting ? "Gerando PDF…" : "Baixar simulação em PDF"}
               </button>
+              {allowAccount && (
+                <button
+                  type="button"
+                  className="button primary save-account-button"
+                  onClick={continueInAccount}
+                >
+                  {accountMode
+                    ? "Continuar e salvar na conta"
+                    : "Criar conta e guardar simulação"}
+                </button>
+              )}
               <p className="result-caution">
                 Contribuição estimada não é lucro líquido. Considere também os
                 custos que não entraram nesta conta.

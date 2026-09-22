@@ -30,10 +30,11 @@ export default function Terms() {
       </p>
       <h2>Disponibilidade e pagamentos</h2>
       <p>
-        A prévia é gratuita. Não há contratação, renovação, pagamento, catálogo
-        salvo ou cadastro disponíveis. Os recursos PRO e o preço proposto podem
-        mudar antes do lançamento. Nenhum clique nesta versão gera uma
-        assinatura.
+        A prévia é gratuita. Não há contratação, renovação, pagamento ou
+        catálogo de produtos disponíveis. Nos ambientes de teste habilitados,
+        você pode criar conta e guardar simulações. Nenhum clique nesta versão
+        gera uma assinatura. O preço de lançamento aprovado para o PRO é R$
+        29,90/mês, ainda sem contratação.
       </p>
       <h2>Antes do lançamento comercial</h2>
       <p>

@@ -1,6 +1,6 @@
 # PreçoPronto
 
-Calculadora gratuita de preço e contribuição por unidade para vendedores de marketplaces. Prévia do MVP: não oferece cadastro, catálogo ou cobrança ainda.
+Calculadora gratuita de preço e contribuição por unidade para vendedores de marketplaces. Prévia do MVP: cadastro e simulações salvas podem ser habilitados em ambiente de testes; catálogo de produtos e cobrança ainda não estão disponíveis.
 
 ## Desenvolvimento
 
@@ -21,7 +21,7 @@ npm run build
 npm start
 ```
 
-Vitest testa o núcleo de cálculo, parsing monetário, preset tarifário, UI da calculadora e geração de PDF. A cobertura destes módulos é exigida em pelo menos 70% de linhas, branches, funções e statements; páginas estáticas não entram nessa métrica. CI executa os mesmos gates. QA visual deve cobrir 360 px e desktop.
+Vitest testa cálculo, parsing, tarifas, PDF, cadastro, consentimentos e persistência isolada de simulações. A integração exige PostgreSQL e SMTP de teste configurados (veja o guia de cadastro abaixo). A cobertura destes módulos é exigida em pelo menos 70% de linhas, branches, funções e statements; páginas estáticas não entram nessa métrica. CI executa os mesmos gates. QA visual deve cobrir 360 px e desktop.
 
 ## Como calcular
 
@@ -54,3 +54,7 @@ Não marcar a prontidão de produção como concluída por um build ou por teste
 ### Hospedagem comercial inicial
 
 O fundador indicou o VPS Hostinger caso o Hobby não permita a operação comercial. A restrição foi confirmada; `vercel.json` desativa novos deploys automáticos via Git. Deploys existentes não são removidos por essa opção. O servidor foi apenas inspecionado: publicação no VPS, domínio, TLS e backup da nova aplicação continuam pendentes.
+
+## Cadastro em ambiente de testes
+
+A branch de onboarding adiciona PostgreSQL + Better Auth e uma caixa SMTP local. Veja [configuração e evidências](docs/account-onboarding.md) e [caixa de teste](docs/local-mailbox.md). `AUTH_ENABLED=false` mantém cadastro/API fechados por padrão. Nenhuma configuração de pagamento real foi adicionada.
