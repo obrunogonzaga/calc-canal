@@ -19,7 +19,7 @@ A entrega de código não conclui decisões do fundador, contas externas, homolo
 | Gateway | Asaas como candidato | Taxas da conta, elegibilidade e sandbox não verificados | Fundador indicar conta; validar ticket e recursos |
 | Auth e banco | Supabase como candidato | Conta/ambiente não verificados | Definir fornecedor e acesso seguro |
 | E-mail | Resend como candidato | Domínio remetente/conta não verificados | Definir remetente e validar entrega |
-| Hospedagem | Vercel como candidato | Repositório Next.js; projeto/domínio não verificados nesta entrega | Definir projeto e ambientes |
+| Hospedagem | Vercel já integrada ao repositório | Preview da PR #18 Ready, projeto calc-canal comprovado pelo check; domínio de produção não confirmado | Confirmar domínio e configuração final de produção |
 | Domínio | precopronto.com.br | Proposto; não há prova de aquisição | Confirmar propriedade/DNS |
 | Fornecedor/CNPJ e NFS-e | Não informado | Bloqueia contratação pública | Definir com responsável |
 | Suporte comercial | E-mail/formulário a definir | Prévia aponta ao GitHub público, sem formulário que perde dados | Informar canal e horário |
@@ -78,4 +78,10 @@ Registro de execução final deve separar teste local, CI da PR, preview, merge 
 - Quatro rotas públicas responderam HTTP 200; links e âncoras internos conferidos; preview sem canonical de produção e com noindex. Robots/sitemap configurados testados separadamente.
 - Foco de teclado no link “Pular para o conteúdo” visível; nenhuma ocorrência de erro/warning na aba limpa do build final após a simulação.
 - jsPDF atualizado para 4.2.1; Vitest para 3.2.7; override PostCSS em versão corrigida, sem migração de major do Next. `npm audit --omit=dev`: zero vulnerabilidades reportadas. Audit completo ainda aponta três entradas moderadas de desenvolvimento (Vitest/mocker/coverage, GHSA-82fw-gwwq-j7x9); não usar servidor Vitest exposto.
-- Sem merge ou deploy executado. Oferta, fornecedor, domínio e contas da #3 continuam pendentes; milestone não concluído.
+- Sem merge ou promoção manual para produção. A integração existente da Vercel criou um preview automático da PR #18; o check está Ready, mas o acesso remoto exige login Vercel. QA funcional realizado no build de produção local. Oferta, fornecedor, domínio e contas comerciais da #3 continuam pendentes; milestone não concluído.
+
+### Conferência complementar
+
+- CI remota do commit c5f9581 aprovada: https://github.com/obrunogonzaga/calc-canal/actions/runs/35773888412.
+- Contraste calculado sobre estilos renderizados de 91 elementos de texto da landing (títulos, parágrafos, labels, links, botões, summaries, termos e valores): nenhuma falha; menor razão observada 5,18:1. Essa amostra complementa QA visual e teclado, não é certificação completa de acessibilidade.
+- PR #18 continua em rascunho. O código da prévia não resolve as decisões comerciais requeridas pela #3 nem autoriza fechar o milestone.
