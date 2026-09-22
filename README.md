@@ -1,76 +1,56 @@
-# CalcCanal
+# PreçoPronto
 
-Calculadora de precificação para marketplaces BR (Mercado Livre, Shopee, Amazon Brasil, Magalu).
+Calculadora gratuita de preço e contribuição por unidade para vendedores de marketplaces. Prévia do MVP: não oferece cadastro, catálogo ou cobrança ainda.
 
-## Rodar localmente
+## Desenvolvimento
 
-```bash
-npm install
+```sh
+npm ci
 npm run dev
 ```
 
-Abra [http://localhost:3000](http://localhost:3000).
+Requer Node.js 22 (mesma versão usada no CI). Abra http://localhost:3000.
 
-## Build / deploy
+## Verificação
 
-```bash
+```sh
+npm run lint
+npm run typecheck
+npm run test:coverage
 npm run build
 npm start
 ```
 
-Pronto para **Vercel**: conecte o repositório e use o preset Next.js (sem config extra).
+Vitest testa o núcleo de cálculo, parsing monetário, preset tarifário, UI da calculadora e geração de PDF. A cobertura destes módulos é exigida em pelo menos 70% de linhas, branches, funções e statements; páginas estáticas não entram nessa métrica. CI executa os mesmos gates. QA visual deve cobrir 360 px e desktop.
 
-Export estático (opcional): em `next.config.ts`, adicione `output: 'export'` — note que recursos 100% client-side (localStorage, PDF) continuam funcionando no browser.
+## Como calcular
 
-## Fórmula
+- Informe comissão e imposto aplicáveis à sua operação ou confirme simulação sem impostos.
+- Modo custo + margem encontra o menor preço em centavos que atende à margem após arredondar comissão e imposto.
+- Modo preço informado mostra a contribuição, inclusive negativa.
+- Margem é contribuição dividida pelo preço de venda, não markup. Despesas não informadas não fazem parte do resultado.
+- Formatos aceitos incluem `1.234,56`, `1234,56`, inteiros e `1234.56`. `1.234` sozinho é rejeitado por ambiguidade; use `1.234,00` ou `1234`.
+- Valores monetários usam centavos; entradas inválidas, negativas ou não finitas são rejeitadas. Combinações de taxas inviáveis produzem erro, não preço fictício.
+- Editar entradas invalida o resultado e PDF. O PDF preserva premissas e versão de regra da simulação.
 
-Custos fixos por venda:
+## Tarifas
 
-`base = custoProduto + embalagem + freteSeller + taxaFixaCanal`
+O padrão é **manual**, sem presets ilustrativos disfarçados de taxas reais. Há uma regra documental limitada para o custo fixo do Mercado Livre ME2 Drop Off, com confirmação explícita da logística. Comissão/frete continuam manuais. Regra expirada pede nova conferência ou modo manual.
 
-Encargos sobre o preço de venda `P`:
+Ver [escopo, fonte e revisão de tarifas](docs/milestone-1.md). Essa entrega não usa token de marketplace nem reproduz cotação autenticada.
 
-- `comissão = P × (comissão% / 100)`
-- `imposto = P × (imposto% / 100)`
+## Domínio e preview
 
-### Modo A — custo + margem → preço sugerido
+Copie `.env.example` e configure `NEXT_PUBLIC_SITE_URL` somente após confirmar o domínio de produção. Sem origem configurada, o site usa noindex, não anuncia canonical de produção e retorna sitemap vazio. As páginas informativas são da prévia; fornecedor e políticas comerciais finais estão pendentes.
 
-Margem desejada = lucro líquido ÷ preço de venda.
+## Planejamento
 
-```
-P = base / (1 - (comissão% + imposto% + margem%) / 100)
-```
+- [Milestone 1](https://github.com/obrunogonzaga/calc-canal/milestone/1)
+- [MVP e PRD no GitHub](https://github.com/obrunogonzaga/calc-canal/issues/2)
+- [Ficha de decisões e limites desta entrega](docs/milestone-1.md)
 
-### Modo B — preço de venda → lucro
+Não marcar a prontidão de produção como concluída por um build ou por testes com mocks. Cadastro/pagamento pertencem aos milestones seguintes.
 
-```
-lucro = P - custoProduto - embalagem - freteSeller - taxaFixa - comissão - imposto
-% lucro = (lucro / P) × 100
-```
+### Hospedagem comercial inicial
 
-Implementação: [`src/lib/pricing.ts`](src/lib/pricing.ts).
-
-## Defaults de comissão (editáveis na UI)
-
-| Canal | Comissão % | Taxa fixa R$ |
-|-------|------------|--------------|
-| Mercado Livre | 16 | 6 |
-| Shopee | 14 | 4 |
-| Amazon Brasil | 15 | 2 |
-| Magalu | 18 | 0 |
-
-Fonte: estimativas típicas BR para MVP — ver comentários em [`src/data/channels.json`](src/data/channels.json).
-
-## Freemium (MVP)
-
-- 5 cálculos/dia via `localStorage`
-- 6º cálculo: paywall soft + waitlist de e-mail (localStorage)
-- PDF com marca d'água na versão free
-
-## O que falta para produção pública
-
-- Domínio + deploy Vercel
-- Backend para waitlist (Resend/Supabase) e limite real de uso
-- Stripe + auth para plano PRO (R$ 19,90/mês)
-- Tabelas de comissão por categoria/plano
-- Analytics (Plausible/PostHog)
+O fundador indicou o VPS Hostinger caso o Hobby não permita a operação comercial. A restrição foi confirmada; `vercel.json` desativa novos deploys automáticos via Git. Deploys existentes não são removidos por essa opção. O servidor foi apenas inspecionado: publicação no VPS, domínio, TLS e backup da nova aplicação continuam pendentes.

@@ -1,299 +1,539 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import channelsData from "@/data/channels.json";
+import { useEffect, useRef, useState } from "react";
+import channels from "@/data/channels.json";
 import type { ChannelId } from "@/types/channels";
-import {
-  canCalculate,
-  FREE_DAILY_LIMIT,
-  getDailyCalculationCount,
-  incrementCalculationCount,
-} from "@/lib/freemium";
-import { downloadBreakdownPdf } from "@/lib/pdf";
 import {
   calculatePricing,
   formatBRL,
   type CalcMode,
   type PricingBreakdown,
 } from "@/lib/pricing";
-import { PaywallModal } from "./PaywallModal";
+import { parseBRNumber } from "@/lib/numbers";
+import {
+  isRuleCurrent,
+  mlDropOffRule,
+  resolveFixedFee,
+  type TariffMode,
+} from "@/lib/tariffs";
 
-const channelEntries = Object.entries(channelsData).filter(
-  ([key]) => key !== "_comment"
-) as [ChannelId, (typeof channelsData)["mercado_livre"]][];
-
-function parseNum(value: string): number {
-  const n = parseFloat(value.replace(",", "."));
-  return Number.isFinite(n) ? n : 0;
+type FieldName =
+  | "productCost"
+  | "packaging"
+  | "sellerShipping"
+  | "desiredMargin"
+  | "taxPercent"
+  | "commissionPercent"
+  | "fixedFee"
+  | "salePrice";
+const fields: Record<FieldName, string> = {
+  productCost: "Custo do produto (R$)",
+  packaging: "Embalagem (R$)",
+  sellerShipping: "Frete pago por você (R$)",
+  desiredMargin: "Margem desejada (%)",
+  taxPercent: "Imposto (%)",
+  commissionPercent: "Comissão do canal (%)",
+  fixedFee: "Taxa fixa por unidade (R$)",
+  salePrice: "Preço de venda (R$)",
+};
+const initialValues: Record<FieldName, string> = {
+  productCost: "",
+  packaging: "0",
+  sellerShipping: "0",
+  desiredMargin: "20",
+  taxPercent: "",
+  commissionPercent: "",
+  fixedFee: "",
+  salePrice: "",
+};
+export interface SimulationSnapshot {
+  channel: string;
+  mode: CalcMode;
+  breakdown: PricingBreakdown;
+  createdAt: string;
+  assumptions: string[];
 }
 
 export function Calculator() {
-  const [channelId, setChannelId] = useState<ChannelId>("mercado_livre");
-  const channel = channelsData[channelId];
-
+  const [channel, setChannel] = useState<ChannelId>("mercado_livre");
   const [mode, setMode] = useState<CalcMode>("margin_to_price");
-  const [productCost, setProductCost] = useState("50");
-  const [packaging, setPackaging] = useState("3");
-  const [sellerShipping, setSellerShipping] = useState("0");
-  const [desiredMargin, setDesiredMargin] = useState("20");
-  const [taxPercent, setTaxPercent] = useState("6");
-  const [commissionPercent, setCommissionPercent] = useState(
-    String(channel.commissionPercent)
-  );
-  const [fixedFee, setFixedFee] = useState(String(channel.fixedFee));
-  const [salePrice, setSalePrice] = useState("100");
-  const [breakdown, setBreakdown] = useState<PricingBreakdown | null>(null);
+  const [values, setValues] = useState(initialValues);
+  const [excludeTax, setExcludeTax] = useState(false);
+  const [snapshot, setSnapshot] = useState<SimulationSnapshot | null>(null);
+  const [errors, setErrors] = useState<Partial<Record<FieldName, string>>>({});
   const [error, setError] = useState<string | null>(null);
-  const [paywallOpen, setPaywallOpen] = useState(false);
-  const [usageCount, setUsageCount] = useState(0);
-
-  const syncChannelDefaults = useCallback((id: ChannelId) => {
-    const c = channelsData[id];
-    setCommissionPercent(String(c.commissionPercent));
-    setFixedFee(String(c.fixedFee));
-  }, []);
-
-  const remaining = useMemo(
-    () => Math.max(0, FREE_DAILY_LIMIT - usageCount),
-    [usageCount]
-  );
-
+  const [exporting, setExporting] = useState(false);
+  const [example, setExample] = useState(false);
+  const [tariffMode, setTariffMode] = useState<TariffMode>("manual");
+  const [confirmedDropOff, setConfirmedDropOff] = useState(false);
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  const resultRef = useRef<HTMLDivElement>(null);
+  const revision = useRef(0);
   useEffect(() => {
-    setUsageCount(getDailyCalculationCount());
-  }, []);
+    if (snapshot) resultRef.current?.focus();
+  }, [snapshot]);
 
-  function refreshUsage() {
-    setUsageCount(getDailyCalculationCount());
-  }
-
-  function handleChannelChange(id: ChannelId) {
-    setChannelId(id);
-    syncChannelDefaults(id);
-    setBreakdown(null);
-  }
-
-  function runCalculate() {
+  function invalidate() {
+    revision.current++;
+    setSnapshot(null);
     setError(null);
-    if (!canCalculate()) {
-      setPaywallOpen(true);
+    setErrors({});
+  }
+  function update(name: FieldName, value: string) {
+    invalidate();
+    setValues((current) => ({ ...current, [name]: value }));
+  }
+  function loadExample() {
+    invalidate();
+    setExample(true);
+    setTariffMode("manual");
+    setConfirmedDropOff(false);
+    setMode("margin_to_price");
+    setExcludeTax(false);
+    setValues({
+      productCost: "50",
+      packaging: "3",
+      sellerShipping: "0",
+      desiredMargin: "20",
+      taxPercent: "6",
+      commissionPercent: "16",
+      fixedFee: "6",
+      salePrice: "100",
+    });
+  }
+
+  function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setErrors({});
+    setSnapshot(null);
+    const nextErrors: Partial<Record<FieldName, string>> = {};
+    const parsed = {} as Record<FieldName, number>;
+    for (const name of Object.keys(fields) as FieldName[]) {
+      if (
+        (name === "salePrice" && mode !== "price_to_profit") ||
+        (name === "desiredMargin" && mode !== "margin_to_price") ||
+        (name === "taxPercent" && excludeTax) ||
+        (name === "fixedFee" && tariffMode === "ml_drop_off")
+      ) {
+        parsed[name] = 0;
+        continue;
+      }
+      try {
+        parsed[name] = parseBRNumber(values[name], fields[name]);
+      } catch (e) {
+        nextErrors[name] =
+          e instanceof Error ? e.message : "Revise este valor.";
+      }
+    }
+    if (Object.keys(nextErrors).length) {
+      setErrors(nextErrors);
+      setError("Revise os campos indicados. Nenhum cálculo foi concluído.");
+      requestAnimationFrame(() =>
+        document.getElementById(Object.keys(nextErrors)[0])?.focus(),
+      );
       return;
     }
-
     try {
-      const result = calculatePricing({
-        productCost: parseNum(productCost),
-        packaging: parseNum(packaging),
-        sellerShipping: parseNum(sellerShipping),
-        desiredMarginPercent: parseNum(desiredMargin),
-        taxPercent: parseNum(taxPercent),
-        commissionPercent: parseNum(commissionPercent),
-        fixedFee: parseNum(fixedFee),
-        salePrice: parseNum(salePrice),
+      const tariff = resolveFixedFee(
+        tariffMode,
+        parsed.fixedFee,
+        confirmedDropOff,
+      );
+      const breakdown = calculatePricing({
+        ...parsed,
+        fixedFee: tariff.amount,
+        desiredMarginPercent: parsed.desiredMargin,
         mode,
       });
-      incrementCalculationCount();
-      refreshUsage();
-      setBreakdown(result);
+      setSnapshot({
+        channel: channels[channel].label,
+        mode,
+        breakdown,
+        createdAt: new Date().toISOString(),
+        assumptions: [
+          tariffMode === "manual"
+            ? "Taxas informadas manualmente pelo usuário. Versão: manual-v1."
+            : `Custo fixo zero para ME2 Drop Off confirmado pelo usuário. Versão: ${tariff.ruleId}. Comissão e frete informados manualmente.`,
+          ...(tariffMode === "ml_drop_off"
+            ? [
+                `Fonte: ${mlDropOffRule.source}`,
+                `Vigência desde ${mlDropOffRule.effectiveFrom}; conferência ${mlDropOffRule.checkedAt}; revisão até ${mlDropOffRule.reviewBy}.`,
+              ]
+            : []),
+          `Comissão: ${parsed.commissionPercent}%. Imposto: ${parsed.taxPercent}%.`,
+          ...(mode === "margin_to_price"
+            ? [`Margem alvo sobre a venda: ${parsed.desiredMargin}%.`]
+            : []),
+          excludeTax
+            ? "Impostos não incluídos por escolha do usuário."
+            : "Alíquota informada pelo usuário; não constitui apuração fiscal.",
+          "Uma unidade por venda. Despesas fixas, anúncios e devoluções não informados não estão incluídos.",
+          ...(example
+            ? [
+                "Simulação iniciada com exemplo fictício; revise os valores antes de usar.",
+              ]
+            : []),
+        ],
+      });
     } catch (e) {
-      setBreakdown(null);
-      setError(e instanceof Error ? e.message : "Erro ao calcular.");
+      setError(
+        e instanceof Error
+          ? e.message
+          : "Não foi possível calcular. Revise os valores.",
+      );
+      requestAnimationFrame(() => errorRef.current?.focus());
     }
   }
 
-  function handlePdf() {
-    if (!breakdown) return;
-    downloadBreakdownPdf(channel.label, breakdown);
+  async function exportPdf() {
+    if (!snapshot) return;
+    const currentRevision = revision.current;
+    setExporting(true);
+    setError(null);
+    try {
+      const { downloadBreakdownPdf } = await import("@/lib/pdf");
+      if (currentRevision === revision.current) downloadBreakdownPdf(snapshot);
+    } catch {
+      setError(
+        "Não foi possível gerar o PDF. Seu resultado continua disponível; tente novamente.",
+      );
+    } finally {
+      setExporting(false);
+    }
   }
 
+  function field(name: FieldName, hint?: string) {
+    return (
+      <div className="field">
+        <label htmlFor={name}>{fields[name]}</label>
+        <input
+          id={name}
+          name={name}
+          inputMode="decimal"
+          autoComplete="off"
+          value={values[name]}
+          onChange={(event) => update(name, event.target.value)}
+          aria-invalid={Boolean(errors[name])}
+          aria-describedby={
+            errors[name] ? `${name}-error` : hint ? `${name}-hint` : undefined
+          }
+          placeholder={name === "productCost" ? "Ex.: 50,00" : undefined}
+        />
+        {hint && (
+          <p className="field-hint" id={`${name}-hint`}>
+            {hint}
+          </p>
+        )}
+        {errors[name] && (
+          <p className="field-error" id={`${name}-error`}>
+            {errors[name]}
+          </p>
+        )}
+      </div>
+    );
+  }
+  const b = snapshot?.breakdown;
   return (
-    <>
-      <PaywallModal open={paywallOpen} onClose={() => setPaywallOpen(false)} />
-
-      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900">Calculadora</h2>
-            <p className="text-xs text-slate-500">
-              {remaining} de {FREE_DAILY_LIMIT} cálculos grátis hoje
-            </p>
-          </div>
-          <div className="flex rounded-lg bg-slate-100 p-1 text-sm">
-            <button
-              type="button"
-              onClick={() => setMode("margin_to_price")}
-              className={`flex-1 rounded-md px-3 py-2 font-medium transition ${
-                mode === "margin_to_price"
-                  ? "bg-white text-teal-700 shadow-sm"
-                  : "text-slate-600"
-              }`}
-            >
-              Custo + margem → preço
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode("price_to_profit")}
-              className={`flex-1 rounded-md px-3 py-2 font-medium transition ${
-                mode === "price_to_profit"
-                  ? "bg-white text-teal-700 shadow-sm"
-                  : "text-slate-600"
-              }`}
-            >
-              Preço → lucro
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {channelEntries.map(([id, c]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => handleChannelChange(id)}
-              className={`rounded-xl border px-3 py-3 text-left text-sm font-medium transition ${
-                channelId === id
-                  ? "border-teal-500 bg-teal-50 text-teal-900"
-                  : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300"
-              }`}
-            >
-              {c.label}
-            </button>
+    <div className="calculator-layout">
+      <form className="calculator-form" onSubmit={submit} noValidate>
+        <fieldset className="mode-switch">
+          <legend className="sr-only">O que você quer calcular?</legend>
+          {(
+            [
+              ["margin_to_price", "Encontrar meu preço"],
+              ["price_to_profit", "Conferir minha margem"],
+            ] as const
+          ).map(([value, label]) => (
+            <label key={value} className={mode === value ? "selected" : ""}>
+              <input
+                type="radio"
+                name="mode"
+                checked={mode === value}
+                onChange={() => {
+                  invalidate();
+                  setMode(value);
+                }}
+              />
+              {label}
+            </label>
           ))}
+        </fieldset>
+        <div className="field channel-field">
+          <label htmlFor="channel">Onde você vende?</label>
+          <select
+            id="channel"
+            value={channel}
+            onChange={(event) => {
+              invalidate();
+              setChannel(event.target.value as ChannelId);
+              setTariffMode("manual");
+              setConfirmedDropOff(false);
+            }}
+          >
+            {(Object.entries(channels) as [ChannelId, { label: string }][]).map(
+              ([id, c]) => (
+                <option key={id} value={id}>
+                  {c.label}
+                </option>
+              ),
+            )}
+          </select>
+          <p className="field-hint">
+            Comissão e frete são informados por você. Os valores são preservados
+            ao trocar de canal; revise-os.
+          </p>
         </div>
-
-        <div className="mt-6 grid gap-4 sm:grid-cols-2">
-          <Field label="Custo do produto (R$)" value={productCost} onChange={setProductCost} />
-          <Field label="Embalagem (R$)" value={packaging} onChange={setPackaging} />
-          <Field
-            label="Frete pago pelo seller (R$)"
-            value={sellerShipping}
-            onChange={setSellerShipping}
-          />
-          {mode === "margin_to_price" ? (
-            <Field
-              label="Margem desejada (%)"
-              value={desiredMargin}
-              onChange={setDesiredMargin}
-            />
-          ) : (
-            <Field
-              label="Preço de venda (R$)"
-              value={salePrice}
-              onChange={setSalePrice}
-            />
+        {channel === "mercado_livre" && (
+          <div className="tariff-box">
+            <label htmlFor="tariff-mode">Como definir o custo fixo?</label>
+            <select
+              id="tariff-mode"
+              value={tariffMode}
+              onChange={(e) => {
+                invalidate();
+                setTariffMode(e.target.value as TariffMode);
+                setConfirmedDropOff(false);
+              }}
+            >
+              <option value="manual">Informar manualmente</option>
+              <option value="ml_drop_off">
+                Regra verificada: ME2 Drop Off
+              </option>
+            </select>
+            {tariffMode === "ml_drop_off" ? (
+              <>
+                <p>
+                  <strong>Custo fixo R$ 0,00.</strong> Só para anúncios com
+                  Mercado Envios ME2 Drop Off (envio em agência), sem Flex.
+                  Comissão da categoria, frete e imposto continuam manuais.
+                </p>
+                <p>
+                  Vigente desde 02/03/2026 · conferida em 22/09/2026 · revisar
+                  até 29/09/2026.{" "}
+                  <a
+                    href={mlDropOffRule.source}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Consultar fonte oficial
+                  </a>
+                  .
+                </p>
+                <label className="checkbox-field">
+                  <input
+                    type="checkbox"
+                    checked={confirmedDropOff}
+                    onChange={(e) => {
+                      invalidate();
+                      setConfirmedDropOff(e.target.checked);
+                    }}
+                  />
+                  <span>
+                    Conferi no anúncio: a logística é ME2 Drop Off, sem Flex ou
+                    combinação de logísticas.
+                  </span>
+                </label>
+                {!isRuleCurrent() && (
+                  <p className="field-error">
+                    Regra fora da janela de revisão. Selecione o modo manual.
+                  </p>
+                )}
+              </>
+            ) : (
+              <p>
+                Use o custo fixo da sua conta. Flex, envio próprio e
+                configurações não cobertas exigem conferência manual. Seus
+                valores manuais ficam preservados ao testar a regra.
+              </p>
+            )}
+          </div>
+        )}
+        <div className="form-section-heading">
+          <h3>Seus custos, por unidade</h3>
+          <button type="button" className="text-button" onClick={loadExample}>
+            Usar exemplo fictício
+          </button>
+        </div>
+        {example && (
+          <p className="example-notice">
+            Exemplo fictício carregado. As taxas abaixo são ilustrativas, não
+            tarifas oficiais.
+          </p>
+        )}
+        <div className="fields-grid">
+          {field("productCost")}
+          {field(
+            mode === "margin_to_price" ? "desiredMargin" : "salePrice",
+            mode === "margin_to_price"
+              ? "Percentual que deve sobrar sobre a venda."
+              : undefined,
           )}
-          <Field
-            label="Imposto aproximado (%)"
-            value={taxPercent}
-            onChange={setTaxPercent}
-          />
-          <Field
-            label="Comissão do canal (%)"
-            value={commissionPercent}
-            onChange={setCommissionPercent}
-          />
-          <Field
-            label="Taxa fixa do canal (R$)"
-            value={fixedFee}
-            onChange={setFixedFee}
-          />
+          {field("packaging")}
+          {field(
+            "sellerShipping",
+            "Informe a parcela paga por você, por unidade.",
+          )}
         </div>
-
-        <p className="mt-3 text-xs text-slate-500">{channel.sourceNote}</p>
-
+        <h3 className="form-subtitle">Taxas da sua operação</h3>
+        <div className="fields-grid">
+          {field(
+            "commissionPercent",
+            "Confirme o percentual da categoria e do anúncio.",
+          )}
+          {tariffMode === "manual" ? (
+            field("fixedFee")
+          ) : (
+            <div className="fixed-rule-value">
+              <span>Custo fixo pela regra</span>
+              <strong>R$ 0,00</strong>
+            </div>
+          )}
+          {!excludeTax &&
+            field(
+              "taxPercent",
+              "Informe sua alíquota ou confirme abaixo a exclusão.",
+            )}
+        </div>
+        <label className="checkbox-field">
+          <input
+            type="checkbox"
+            checked={excludeTax}
+            onChange={(e) => {
+              invalidate();
+              setExcludeTax(e.target.checked);
+            }}
+          />
+          <span>
+            Simular sem impostos. Entendo que eles não estarão incluídos.
+          </span>
+        </label>
         {error && (
-          <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+          <p className="error-banner" role="alert" tabIndex={-1} ref={errorRef}>
             {error}
           </p>
         )}
-
-        <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-          <button
-            type="button"
-            onClick={runCalculate}
-            className="flex-1 rounded-xl bg-teal-600 px-4 py-3 text-sm font-semibold text-white hover:bg-teal-700"
-          >
-            Calcular
-          </button>
-          <button
-            type="button"
-            onClick={handlePdf}
-            disabled={!breakdown}
-            className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-          >
-            Baixar PDF (marca d&apos;água)
-          </button>
+        <button type="submit" className="button primary calculate-button">
+          {mode === "margin_to_price"
+            ? "Calcular preço sugerido"
+            : "Calcular contribuição"}
+          <span aria-hidden="true">↗</span>
+        </button>
+        <p className="form-footnote">
+          Nenhum dado é enviado a um marketplace. Uma unidade por venda.
+        </p>
+      </form>
+      <aside className="result-panel" aria-label="Resultado da simulação">
+        <div
+          ref={resultRef}
+          tabIndex={-1}
+          className="result-content"
+          aria-live="polite"
+        >
+          {snapshot && b ? (
+            <>
+              <div className="result-topline">
+                <span>Simulação pronta</span>
+                <span>{snapshot.channel}</span>
+              </div>
+              <h3>
+                {snapshot.mode === "margin_to_price"
+                  ? "Seu preço sugerido"
+                  : "Contribuição por unidade"}
+              </h3>
+              <p
+                className={`result-number ${b.netProfit < 0 ? "negative" : ""}`}
+              >
+                {formatBRL(
+                  snapshot.mode === "margin_to_price"
+                    ? b.suggestedPrice
+                    : b.netProfit,
+                )}
+              </p>
+              <p className="result-margin">
+                {b.netProfit < 0
+                  ? "A venda não cobre os custos informados."
+                  : `${formatBRL(b.netProfit)} de contribuição por unidade.`}{" "}
+                <strong>
+                  {b.profitPercent.toLocaleString("pt-BR")}% da venda
+                </strong>
+              </p>
+              <dl className="breakdown">
+                <div>
+                  <dt>Preço de venda</dt>
+                  <dd>{formatBRL(b.suggestedPrice)}</dd>
+                </div>
+                {(
+                  [
+                    ["Produto", b.productCost],
+                    ["Embalagem", b.packaging],
+                    ["Frete", b.sellerShipping],
+                    ["Comissão", b.commission],
+                    ["Taxa fixa", b.fixedFee],
+                    ["Imposto", b.tax],
+                  ] as [string, number][]
+                ).map(([label, value]) => (
+                  <div key={label}>
+                    <dt>{label}</dt>
+                    <dd>− {formatBRL(value)}</dd>
+                  </div>
+                ))}
+                <div
+                  className={`breakdown-total ${b.netProfit < 0 ? "negative" : ""}`}
+                >
+                  <dt>Contribuição estimada</dt>
+                  <dd>{formatBRL(b.netProfit)}</dd>
+                </div>
+              </dl>
+              <details className="assumptions">
+                <summary>Premissas desta simulação</summary>
+                <ul>
+                  {snapshot.assumptions.map((a) => (
+                    <li key={a}>{a}</li>
+                  ))}
+                </ul>
+              </details>
+              <button
+                type="button"
+                className="button secondary export-button"
+                disabled={exporting}
+                onClick={exportPdf}
+              >
+                {exporting ? "Gerando PDF…" : "Baixar simulação em PDF"}
+              </button>
+              <p className="result-caution">
+                Contribuição estimada não é lucro líquido. Considere também os
+                custos que não entraram nesta conta.
+              </p>
+            </>
+          ) : (
+            <div className="result-empty">
+              <span className="empty-symbol" aria-hidden="true">
+                =
+              </span>
+              <h3>
+                Quanto sobra
+                <br />
+                em cada venda?
+              </h3>
+              <p>
+                Preencha os custos ao lado. Seu preço e o detalhamento aparecem
+                aqui.
+              </p>
+              <div className="empty-checks">
+                <span>Preço sugerido</span>
+                <span>Contribuição por unidade</span>
+                <span>Cada custo discriminado</span>
+              </div>
+              <p className="empty-tip">
+                Não sabe por onde começar?
+                <br />
+                Use o exemplo fictício para explorar.
+              </p>
+            </div>
+          )}
         </div>
-
-        {breakdown && (
-          <div className="mt-6 rounded-xl border border-teal-100 bg-teal-50/50 p-4">
-            <p className="text-sm text-slate-600">Resultado</p>
-            <p className="mt-1 text-2xl font-bold text-teal-800">
-              {mode === "margin_to_price"
-                ? formatBRL(breakdown.suggestedPrice)
-                : formatBRL(breakdown.netProfit)}
-            </p>
-            <p className="text-xs text-slate-500">
-              {mode === "margin_to_price"
-                ? "Preço sugerido de venda"
-                : "Lucro líquido estimado"}
-            </p>
-            <ul className="mt-4 space-y-2 text-sm text-slate-700">
-              <Row label="Custo produto" value={formatBRL(breakdown.productCost)} />
-              <Row label="Embalagem" value={formatBRL(breakdown.packaging)} />
-              <Row label="Frete seller" value={formatBRL(breakdown.sellerShipping)} />
-              <Row label="Comissão" value={formatBRL(breakdown.commission)} />
-              <Row label="Taxa fixa" value={formatBRL(breakdown.fixedFee)} />
-              <Row label="Imposto" value={formatBRL(breakdown.tax)} />
-              <Row
-                label="Lucro líquido"
-                value={formatBRL(breakdown.netProfit)}
-                highlight
-              />
-              <Row label="% lucro sobre venda" value={`${breakdown.profitPercent}%`} />
-            </ul>
-          </div>
-        )}
-      </section>
-    </>
-  );
-}
-
-function Field({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <label className="block">
-      <span className="text-xs font-medium text-slate-600">{label}</span>
-      <input
-        type="text"
-        inputMode="decimal"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
-      />
-    </label>
-  );
-}
-
-function Row({
-  label,
-  value,
-  highlight,
-}: {
-  label: string;
-  value: string;
-  highlight?: boolean;
-}) {
-  return (
-    <li className={`flex justify-between ${highlight ? "font-semibold text-teal-900" : ""}`}>
-      <span>{label}</span>
-      <span>{value}</span>
-    </li>
+      </aside>
+    </div>
   );
 }
