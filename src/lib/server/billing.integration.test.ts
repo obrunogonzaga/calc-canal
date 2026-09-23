@@ -25,7 +25,6 @@ vi.mock("./db", () => ({
 }));
 
 vi.mock("./asaas-client", () => ({
-  PRECO_PRONTO_PRO_VALUE: 29.9,
   AsaasClientError: class AsaasClientError extends Error {
     constructor(
       message: string,
@@ -120,6 +119,7 @@ function checkoutPayload(
     billingTypes?: string[];
     chargeTypes?: string[];
     itemValue?: number;
+    itemName?: string;
     externalReference?: string;
   } = {},
 ) {
@@ -136,7 +136,9 @@ function checkoutPayload(
       chargeTypes: options.chargeTypes ?? ["RECURRENT"],
       items: [
         {
-          name: "PreçoPronto PRO",
+          name: options.itemName ?? (options.billingTypes?.includes("PIX")
+            ? "Líquido PRO — 1 mês"
+            : "Líquido PRO"),
           quantity: 1,
           value: options.itemValue ?? 29.9,
         },
@@ -334,6 +336,7 @@ suite("billing integration", () => {
         eventId: eventId("evt-pix-late-paid-second"),
         billingTypes: ["PIX"],
         chargeTypes: ["DETACHED"],
+        itemName: "PreçoPronto PRO — 1 mês",
       }),
     );
     const status = await getBillingStatus(actor);
@@ -503,6 +506,9 @@ suite("billing integration", () => {
     const wrongValue = await processAsaasCheckoutWebhook(
       checkoutPayload(order, { itemValue: 10, eventId: eventId("evt-spoof-value") }),
     );
+    const wrongName = await processAsaasCheckoutWebhook(
+      checkoutPayload(order, { itemName: "Outro produto", eventId: eventId("evt-spoof-name") }),
+    );
     const documentedCardVariant = await processAsaasCheckoutWebhook(
       checkoutPayload(order, {
         billingTypes: ["MUNDIPAGG_CIELO"],
@@ -512,6 +518,7 @@ suite("billing integration", () => {
     const status = await getBillingStatus(actor);
 
     expect(wrongValue).toMatchObject({ granted: false, outcome: "rejected_offer" });
+    expect(wrongName).toMatchObject({ granted: false, outcome: "rejected_offer" });
     expect(documentedCardVariant).toMatchObject({
       granted: false,
       outcome: "rejected_offer",
@@ -559,7 +566,9 @@ suite("billing integration", () => {
     );
 
     const result = await processAsaasCheckoutWebhook(
-      checkoutPayload({ id: orderId, checkoutId }, { eventId: eventId("evt-early-paid") }),
+      checkoutPayload({ id: orderId, checkoutId }, {
+        eventId: eventId("evt-early-paid"), itemName: "PreçoPronto PRO",
+      }),
     );
     const status = await getBillingStatus(actor);
 

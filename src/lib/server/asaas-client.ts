@@ -1,12 +1,14 @@
-import { PRO_MONTHLY_AMOUNT_BRL } from "@/lib/billing-plan";
+import {
+  PRO_CARD_ITEM_NAME,
+  PRO_MONTHLY_AMOUNT_BRL,
+  PRO_PIX_ITEM_NAME,
+} from "@/lib/billing-plan";
 
 export const ASAAS_SANDBOX_API_BASE_URL = "https://api-sandbox.asaas.com/v3";
 export const ASAAS_SANDBOX_CHECKOUT_BASE_URL =
   "https://sandbox.asaas.com/checkoutSession/show";
-export const PRECO_PRONTO_PRO_VALUE = PRO_MONTHLY_AMOUNT_BRL;
-
 const DEFAULT_TIMEOUT_MS = 10_000;
-const USER_AGENT = "PrecoPronto/0.1";
+const USER_AGENT = "Liquido/0.1";
 
 export interface CheckoutCallbacks {
   successUrl: string;
@@ -328,9 +330,9 @@ export function createAsaasSandboxClient(
         callback: input.callbacks,
         items: [
           {
-            name: "PreçoPronto PRO",
+            name: PRO_CARD_ITEM_NAME,
             quantity: 1,
-            value: PRECO_PRONTO_PRO_VALUE,
+            value: PRO_MONTHLY_AMOUNT_BRL,
           },
         ],
         subscription: {
@@ -363,9 +365,9 @@ export function createAsaasSandboxClient(
         callback: input.callbacks,
         items: [
           {
-            name: "PreçoPronto PRO — 1 mês",
+            name: PRO_PIX_ITEM_NAME,
             quantity: 1,
-            value: PRECO_PRONTO_PRO_VALUE,
+            value: PRO_MONTHLY_AMOUNT_BRL,
           },
         ],
       };

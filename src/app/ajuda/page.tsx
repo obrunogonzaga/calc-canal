@@ -35,25 +35,23 @@ export default function Help() {
       </p>
       <h2 id="lancamento">O que está sendo preparado</h2>
       <p>
-        A próxima versão terá conta, catálogo salvo e plano PRO para importação
-        CSV e recálculo em lote. O cadastro e o salvamento de simulações estão
-        disponíveis nos ambientes de teste habilitados. Ainda não há lista de
-        espera ou cobrança. O preço de lançamento é R$ 29,90/mês; as condições
+        Conta, catálogo salvo, importação CSV e recálculo em lote estão em
+        homologação nos ambientes de teste habilitados. Ainda não há venda
+        pública. O preço mensal definido para o PRO é R$ 29,90; as condições
         finais serão informadas antes de qualquer contratação.
       </p>
       <h2>Contato nesta prévia</h2>
       <p>
-        Encontrou um erro?{" "}
-        <a href={supportUrl} target="_blank" rel="noreferrer">
-          Abra uma solicitação no GitHub do projeto
+        Encontrou um erro ou precisa falar sobre a prévia?{" "}
+        <a href={supportUrl}>
+          Escreva para bruno@aifbr.com.br
         </a>
-        . É necessário ter uma conta GitHub. As solicitações são públicas: use
-        exemplos fictícios e não envie dados de clientes, documentos, senhas ou
-        informações privadas.
+        . Não envie senhas, dados de cartão ou documentos por e-mail.
       </p>
       <p>
-        O canal comercial e o prazo de atendimento serão publicados antes do
-        lançamento pago. Nesta prévia, não há promessa de atendimento imediato.
+        O prazo de atendimento e a identificação completa do fornecedor serão
+        publicados antes do lançamento pago. Nesta prévia, não há promessa de
+        atendimento imediato.
       </p>
       <h2>Um resultado mudou?</h2>
       <p>

@@ -17,7 +17,7 @@ export default function Terms() {
       </p>
       <h2>Simulação e premissas</h2>
       <p>
-        PreçoPronto estima preço e contribuição por unidade com os valores
+        Líquido estima preço e contribuição por unidade com os valores
         informados. O resultado não é apuração fiscal, garantia de lucro ou
         prova de que todos os custos da sua operação foram considerados. Confira
         as premissas e as tarifas aplicáveis antes de alterar seus anúncios.

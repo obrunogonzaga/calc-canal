@@ -37,11 +37,11 @@ describe("downloadBreakdownPdf", () => {
       assumptions: ["manual-v1", "Taxas do usuário"],
     });
     const text = calls.text.mock.calls.map((c) => c[0]).join(" ");
-    expect(text).toContain("PreçoPronto");
+    expect(text).toContain("Líquido");
     expect(text).toContain("manual-v1");
     expect(text).toMatch(/Contribuição estimada: R\$\s*19,00/);
     expect(text).toContain("São Paulo");
-    expect(calls.save).toHaveBeenCalledWith("precopronto-simulacao.pdf");
+    expect(calls.save).toHaveBeenCalledWith("liquido-simulacao.pdf");
   });
   it("downloadBreakdownPdf_longPremises_addsPages", () => {
     downloadBreakdownPdf({

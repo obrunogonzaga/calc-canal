@@ -218,7 +218,7 @@ const UI = `<!doctype html>
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Caixa de e-mail local — PreçoPronto</title>
+    <title>Caixa de e-mail local — Líquido</title>
     <style>
       :root { color-scheme: light; font-family: system-ui, sans-serif; }
       body { margin: 0; background: #f5f5f5; color: #202124; }

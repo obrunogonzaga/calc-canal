@@ -42,9 +42,9 @@ export default function Home() {
             <span className="status-dot" /> Para quem vende em marketplaces
           </p>
           <h1>
-            Seu preço pronto.
+            Descubra o preço.
             <br />
-            <span>Sua margem clara.</span>
+            <span>Veja o que sobra.</span>
           </h1>
           <p className="hero-description">
             Antes de anunciar, descubra quanto sobra. Coloque custo, taxas e
@@ -207,7 +207,7 @@ export default function Home() {
             </article>
             <article className="plan pro-plan">
               <p className="plan-label">Em preparação · lançamento mensal</p>
-              <h3>PreçoPronto PRO</h3>
+              <h3>Líquido PRO</h3>
               <p className="plan-price">
                 R$ 29,90<span>/mês</span>
               </p>

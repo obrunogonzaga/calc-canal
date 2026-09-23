@@ -1,8 +1,8 @@
-# Caixa de e-mail local
+# Caixa de e-mail local do Líquido
 
 `scripts/local-mailbox.mjs` inicia um SMTP de desenvolvimento em `127.0.0.1:11025` e uma interface em `http://127.0.0.1:18025`. As mensagens ficam somente na memória do processo e desaparecem quando ele termina.
 
-O servidor só inicia com `APP_ENV=local`. Ele aceita apenas destinatários no domínio `precopronto.test`; qualquer outro destinatário é recusado pelo SMTP. A interface e o SMTP escutam apenas em loopback, e o processo não encaminha mensagens para fora.
+O servidor só inicia com `APP_ENV=local`. Ele aceita apenas destinatários no domínio `precopronto.test`; esse domínio é um fixture legado de desenvolvimento preservado para compatibilidade. Qualquer outro destinatário é recusado pelo SMTP. A interface e o SMTP escutam apenas em loopback, e o processo não encaminha mensagens para fora.
 
 ## Como iniciar
 

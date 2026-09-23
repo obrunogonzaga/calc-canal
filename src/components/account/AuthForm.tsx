@@ -315,7 +315,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
               onChange={(e) => setMarketing(e.target.checked)}
             />
             <span>
-              Quero receber novidades do PreçoPronto por e-mail (opcional).
+              Quero receber novidades do Líquido por e-mail (opcional).
             </span>
           </label>
         </>

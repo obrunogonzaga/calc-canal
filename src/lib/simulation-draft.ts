@@ -2,6 +2,7 @@ import { calculatePricing, type PricingInput } from "./pricing";
 import { resolveFixedFee, type TariffMode } from "./tariffs";
 import type { ChannelId } from "@/types/channels";
 
+// Keep the legacy key so an in-progress simulation survives the rebrand.
 export const DRAFT_KEY = "precopronto:pending-simulation:v1";
 export interface SimulationDraft {
   version: 1;

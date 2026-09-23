@@ -340,7 +340,7 @@ export function ProductsClient() {
       const url = URL.createObjectURL(await response.blob());
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = "precos-preco-pronto.csv";
+      anchor.download = "precos-liquido.csv";
       anchor.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
       setNotice("CSV gerado. Confira os preços antes de atualizar seus anúncios.");

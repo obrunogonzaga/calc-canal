@@ -16,7 +16,7 @@ const DEFAULT_PAGE_SIZE = 100;
 const DEFAULT_MAX_PAGES = 5;
 const MAX_PAGE_SIZE = 100;
 const MAX_PAGES = 10;
-const USER_AGENT = "PrecoPronto/0.1";
+const USER_AGENT = "Liquido/0.1";
 
 export type AsaasSubscriptionClientErrorCode =
   | "CONFIGURATION_ERROR"

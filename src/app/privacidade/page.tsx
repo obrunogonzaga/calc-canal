@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getSiteOrigin } from "@/lib/site";
 import { InfoPage } from "@/components/InfoPage";
+import { supportUrl } from "@/lib/site";
 export const metadata: Metadata = {
   title: "Privacidade da prévia",
   alternates: getSiteOrigin()
@@ -51,10 +52,10 @@ export default function Privacy() {
       </p>
       <h2>Solicitações e links externos</h2>
       <p>
-        O contato público no GitHub é destinado apenas a erros com exemplos
-        fictícios. Não envie documentos, senhas, tokens ou dados privados. Um
-        canal privado para solicitações de dados será definido antes do
-        lançamento público.
+        Para dúvidas ou solicitações sobre seus dados nesta prévia, escreva para{" "}
+        <a href={supportUrl}>bruno@aifbr.com.br</a>. Não envie senhas, tokens ou
+        dados de cartão por e-mail. O procedimento completo de exclusão e
+        retenção será publicado antes do lançamento público.
       </p>
     </InfoPage>
   );
