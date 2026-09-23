@@ -32,6 +32,7 @@ const suite = process.env.TEST_DATABASE_URL ? describe : describe.skip;
 const users: string[] = [];
 const accountId = "sandbox-subscription-test-account";
 const priorAccountId = process.env.ASAAS_SANDBOX_ACCOUNT_ID;
+const priorAsaasEnv = process.env.ASAAS_ENV;
 
 const catalogDraft = {
   version: 1,
@@ -129,6 +130,7 @@ async function reopenCheckout(userId: string, orderId: string, retainPro = false
 suite("subscription lifecycle integration", () => {
   beforeAll(async () => {
     process.env.ASAAS_SANDBOX_ACCOUNT_ID = accountId;
+    process.env.ASAAS_ENV = "sandbox";
     const url = new URL(process.env.TEST_DATABASE_URL!);
     if (!["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) ||
       url.pathname !== "/precopronto_integration") throw new Error("Use the dedicated loopback test database.");
@@ -139,12 +141,15 @@ suite("subscription lifecycle integration", () => {
     for (const sql of migrations) await isolated.pool.query(sql);
   });
   afterAll(async () => {
-    if (!isolated.pool) return;
-    await isolated.pool.query('DELETE FROM "user" WHERE id = ANY($1::text[])', [users]);
-    await isolated.pool.end();
-    isolated.pool = null;
+    if (isolated.pool) {
+      await isolated.pool.query('DELETE FROM "user" WHERE id = ANY($1::text[])', [users]);
+      await isolated.pool.end();
+      isolated.pool = null;
+    }
     if (priorAccountId === undefined) delete process.env.ASAAS_SANDBOX_ACCOUNT_ID;
     else process.env.ASAAS_SANDBOX_ACCOUNT_ID = priorAccountId;
+    if (priorAsaasEnv === undefined) delete process.env.ASAAS_ENV;
+    else process.env.ASAAS_ENV = priorAsaasEnv;
   });
 
   it("reconcileCardSubscription_matchingCheckout_linksOnlyOwner", async () => {
