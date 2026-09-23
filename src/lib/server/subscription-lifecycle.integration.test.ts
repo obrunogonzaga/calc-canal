@@ -31,6 +31,7 @@ function provider(overrides: Partial<AsaasSandboxSubscriptionClient> = {}): Asaa
       paymentStatus: "CONFIRMED", billingType: "CREDIT_CARD", value: 29.9,
     })),
     findCheckoutPaymentBySession: vi.fn(async () => undefined),
+    findInitialPaymentBySubscription: vi.fn(async () => undefined),
     getSubscription: vi.fn(async (id) => ({
       id, status: "ACTIVE", cycle: "MONTHLY", billingType: "CREDIT_CARD", value: 29.9,
     })),
@@ -377,8 +378,8 @@ suite("subscription lifecycle integration", () => {
     const { userId, orderId, checkoutId } = await actor();
     const subscriptionId = `sub_${randomUUID().replaceAll("-", "")}`;
     const paymentId = `pay_${randomUUID().replaceAll("-", "")}`;
-    const api = provider({ findCheckoutPaymentBySession: vi.fn(async (session) => session === checkoutId ? {
-      checkoutSession: checkoutId, paymentId, subscriptionId,
+    const api = provider({ findInitialPaymentBySubscription: vi.fn(async (id) => id === subscriptionId ? {
+      checkoutSession: checkoutId, paymentId, subscriptionId: id,
       paymentStatus: "REFUNDED", billingType: "CREDIT_CARD", value: 29.9,
     } : undefined) });
     await processSubscriptionPaymentWebhook({
@@ -390,5 +391,23 @@ suite("subscription lifecycle integration", () => {
     expect((await getBillingStatus(userId)).plan).toBe("free");
     const row = await isolated.pool!.query("SELECT subscription_id, initial_payment_id FROM billing_order WHERE id = $1", [orderId]);
     expect(row.rows[0]).toMatchObject({ subscription_id: subscriptionId, initial_payment_id: paymentId });
+  });
+
+  it("cardRefund_manyUnlinkedOrders_usesSubscriptionFilterWithoutGlobalBlock", async () => {
+    for (let index = 0; index < 21; index += 1) await actor();
+    const { userId, checkoutId } = await actor();
+    const subscriptionId = `sub_${randomUUID().replaceAll("-", "")}`;
+    const paymentId = `pay_${randomUUID().replaceAll("-", "")}`;
+    const api = provider({ findInitialPaymentBySubscription: vi.fn(async (id) => ({
+      checkoutSession: checkoutId, paymentId, subscriptionId: id,
+      paymentStatus: "REFUNDED", billingType: "CREDIT_CARD", value: 29.9,
+    })) });
+    await processSubscriptionPaymentWebhook({ id: randomUUID(), event: "PAYMENT_REFUNDED",
+      account: { id: accountId }, payment: { id: paymentId, subscription: subscriptionId,
+        billingType: "CREDIT_CARD", value: 29.9, dueDate: saoPauloToday() } }, api);
+    const { getBillingStatus } = await import("./billing");
+    expect((await getBillingStatus(userId)).plan).toBe("free");
+    expect(api.findInitialPaymentBySubscription).toHaveBeenCalledOnce();
+    expect(api.findCheckoutPaymentBySession).not.toHaveBeenCalled();
   });
 });

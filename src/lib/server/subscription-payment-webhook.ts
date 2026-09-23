@@ -231,25 +231,14 @@ export async function processSubscriptionPaymentWebhook(
       WHERE subscription_id = $1 AND method = 'card' AND status = 'paid'
       LIMIT 1
     `, [payload.payment.subscriptionId]);
-    const unresolved = linked.rows[0]
-      ? linked.rows[0].initial_payment_id ? [] : linked.rows
-      : (await getDb().query<{ checkout_id: string }>(`
-          SELECT checkout_id FROM billing_order
-          WHERE subscription_id IS NULL AND method = 'card' AND status = 'paid'
-            AND initial_payment_id IS NULL AND checkout_id IS NOT NULL
-          ORDER BY paid_at DESC LIMIT 21
-        `)).rows;
-    if (unresolved.length > 20) {
-      throw new SubscriptionPaymentWebhookError("RETRY", "Há muitos checkouts sem conciliação.");
-    }
-    const api = provider ?? (unresolved.length ? createAsaasSandboxSubscriptionClient() : undefined);
-    for (const row of unresolved) {
-      const found = await api!.findCheckoutPaymentBySession(row.checkout_id);
-      if (found?.subscriptionId !== payload.payment.subscriptionId) continue;
-      if (initialCandidate) {
-        throw new SubscriptionPaymentWebhookError("INVALID", "Assinatura associada a mais de um checkout.");
-      }
-      if (found.checkoutSession !== row.checkout_id || found.billingType !== "CREDIT_CARD" ||
+    if (!linked.rows[0]?.initial_payment_id) {
+      const api = provider ?? createAsaasSandboxSubscriptionClient();
+      const found = linked.rows[0]
+        ? await api.findCheckoutPaymentBySession(linked.rows[0].checkout_id)
+        : await api.findInitialPaymentBySubscription(payload.payment.subscriptionId);
+      if (!found || found.subscriptionId !== payload.payment.subscriptionId ||
+        (linked.rows[0] && found.checkoutSession !== linked.rows[0].checkout_id) ||
+        found.billingType !== "CREDIT_CARD" ||
         Math.round((found.value ?? 0) * 100) !== 2990 ||
         !["CONFIRMED", "RECEIVED", "REFUNDED", "CHARGEBACK_REQUESTED"].includes(found.paymentStatus ?? "")) {
         throw new SubscriptionPaymentWebhookError("RETRY", "Primeira cobrança ainda sem conciliação segura.");

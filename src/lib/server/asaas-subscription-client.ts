@@ -91,6 +91,7 @@ export interface AsaasSandboxSubscriptionClient {
     checkoutSession: string,
   ): Promise<AsaasSubscriptionPayment | undefined>;
   findCheckoutPaymentBySession(checkoutSession: string): Promise<AsaasCheckoutPayment | undefined>;
+  findInitialPaymentBySubscription(subscriptionId: string): Promise<AsaasSubscriptionPayment | undefined>;
   getSubscription(subscriptionId: string): Promise<AsaasSubscriptionDetails>;
   isSubscriptionDeleted(subscriptionId: string): Promise<boolean>;
   cancelSubscription(
@@ -425,6 +426,29 @@ export function createAsaasSandboxSubscriptionClient(
     return { matches, reachedLimit: true };
   }
 
+  async function scanInitialPayments(
+    subscriptionId: string,
+    remoteFilter: boolean,
+  ): Promise<PaymentScan> {
+    const matches: AsaasCheckoutPayment[] = [];
+    for (let page = 0; page < maxPages; page += 1) {
+      const url = new URL(`${ASAAS_SANDBOX_API_BASE_URL}/payments`);
+      url.searchParams.set("limit", String(pageSize));
+      url.searchParams.set("offset", String(page * pageSize));
+      if (remoteFilter) url.searchParams.set("subscription", subscriptionId);
+      const result = readListPage(await request(url.toString(), "GET", true));
+      for (const raw of result.data) {
+        if (!raw || typeof raw !== "object") continue;
+        const payment = raw as Record<string, unknown>;
+        if (payment.subscription !== subscriptionId || !isSafeIdentifier(payment.checkoutSession)) continue;
+        const match = readPaymentMatch(payment, payment.checkoutSession);
+        if (match) matches.push(match);
+      }
+      if (!result.hasMore) return { matches, reachedLimit: false };
+    }
+    return { matches, reachedLimit: true };
+  }
+
   async function findCheckoutPaymentBySession(input: string): Promise<AsaasCheckoutPayment | undefined> {
       const checkoutSession = validateCheckoutSession(input);
 
@@ -455,6 +479,23 @@ export function createAsaasSandboxSubscriptionClient(
       if (!match) return undefined;
       if (!match.subscriptionId) throw invalidResponse();
       return { ...match, subscriptionId: match.subscriptionId };
+    },
+    async findInitialPaymentBySubscription(input) {
+      const subscriptionId = validateSubscriptionId(input);
+      const filtered = await scanInitialPayments(subscriptionId, true);
+      const filteredMatch = selectSinglePayment(filtered.matches);
+      if (filteredMatch && !filtered.reachedLimit) {
+        return { ...filteredMatch, subscriptionId };
+      }
+      const fallback = await scanInitialPayments(subscriptionId, false);
+      if (fallback.reachedLimit) {
+        throw new AsaasSubscriptionClientError(
+          "A busca pela primeira cobrança atingiu o limite de páginas.",
+          "SEARCH_LIMIT_REACHED",
+        );
+      }
+      const match = selectSinglePayment(fallback.matches);
+      return match ? { ...match, subscriptionId } : undefined;
     },
 
     async getSubscription(input) {

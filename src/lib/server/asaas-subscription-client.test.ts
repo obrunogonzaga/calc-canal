@@ -123,6 +123,22 @@ describe("createAsaasSandboxSubscriptionClient", () => {
     });
   });
 
+  it("findInitialPaymentBySubscription_falseNegative_fallsBackToExactSubscription", async () => {
+    const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(list([]))
+      .mockResolvedValueOnce(list([
+        payment({ subscription: "sub_other" }),
+        payment(),
+        payment({ id: "pay_next", checkoutSession: null }),
+      ]));
+    const client = createAsaasSandboxSubscriptionClient({ env: sandboxEnv(), fetch: fetchMock });
+    await expect(client.findInitialPaymentBySubscription("sub_123")).resolves.toMatchObject({
+      subscriptionId: "sub_123", paymentId: "pay_123", checkoutSession: "checkout-123",
+    });
+    expect(requestUrl(fetchMock, 0).searchParams.get("subscription")).toBe("sub_123");
+    expect(requestUrl(fetchMock, 1).searchParams.has("subscription")).toBe(false);
+  });
+
   it("findSubscriptionByCheckoutSession_paginatedFallback_filtersLocally", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
