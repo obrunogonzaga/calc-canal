@@ -45,6 +45,7 @@ import {
   createCardCheckout,
   createPixCheckout,
   getBillingStatus,
+  isSandboxCheckoutEnabled,
   processAsaasCheckoutWebhook,
   saoPauloToday,
   verifyAsaasWebhookToken,
@@ -64,6 +65,7 @@ const billingEnvironmentKeys = [
   "ASAAS_SANDBOX_API_KEY",
   "ASAAS_SANDBOX_ACCOUNT_ID",
   "ASAAS_SANDBOX_WEBHOOK_TOKEN",
+  "ASAAS_SANDBOX_CALLBACK_ORIGIN",
   "BETTER_AUTH_URL",
 ] as const;
 const originalBillingEnvironment = Object.fromEntries(
@@ -166,6 +168,7 @@ suite("billing integration", () => {
     process.env.ASAAS_SANDBOX_API_KEY = "$aact_hmlg_test-only-key";
     process.env.ASAAS_SANDBOX_ACCOUNT_ID = sandboxAccountId;
     process.env.ASAAS_SANDBOX_WEBHOOK_TOKEN = webhookToken;
+    process.env.ASAAS_SANDBOX_CALLBACK_ORIGIN = "https://checkout.precopronto.test";
     process.env.BETTER_AUTH_URL = "http://localhost:3101";
 
     const url = testDatabaseUrl();
@@ -196,6 +199,25 @@ suite("billing integration", () => {
       status: "ACTIVE",
       externalReference: input.externalReference,
     }));
+  });
+
+  it("createCardCheckout_httpCallback_blocksBeforeCreatingOrder", async () => {
+    const actor = await createActor("billing-callback");
+    const original = process.env.ASAAS_SANDBOX_CALLBACK_ORIGIN;
+    process.env.ASAAS_SANDBOX_CALLBACK_ORIGIN = "http://localhost:3101";
+    try {
+      expect(isSandboxCheckoutEnabled()).toBe(false);
+      await expect(createCardCheckout(actor)).rejects.toMatchObject({
+        code: "BILLING_CHECKOUT_DISABLED",
+      });
+      const orders = await isolated.pool!.query<{ count: string }>(
+        "SELECT COUNT(*) AS count FROM billing_order WHERE user_id = $1",
+        [actor],
+      );
+      expect(Number(orders.rows[0]?.count ?? 0)).toBe(0);
+    } finally {
+      process.env.ASAAS_SANDBOX_CALLBACK_ORIGIN = original;
+    }
   });
 
   afterAll(async () => {
@@ -232,9 +254,9 @@ suite("billing integration", () => {
     expect(first.order.link).toContain("sandbox.asaas.com");
     expect(input.nextDueDate).toBe(saoPauloToday());
     expect(input.callbacks).toEqual({
-      successUrl: "http://localhost:3101/app/plano?retorno=sucesso",
-      cancelUrl: "http://localhost:3101/app/plano?retorno=cancelado",
-      expiredUrl: "http://localhost:3101/app/plano?retorno=expirado",
+      successUrl: "https://checkout.precopronto.test/app/plano?retorno=sucesso",
+      cancelUrl: "https://checkout.precopronto.test/app/plano?retorno=cancelado",
+      expiredUrl: "https://checkout.precopronto.test/app/plano?retorno=expirado",
     });
   });
 

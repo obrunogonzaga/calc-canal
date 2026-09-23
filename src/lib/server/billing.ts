@@ -99,23 +99,22 @@ function isActivePro(expiresAt: Date | string | null): boolean {
   return Boolean(expiresAt && new Date(expiresAt).getTime() > Date.now());
 }
 
-function configuredBaseUrl(): string {
-  const value = process.env.BETTER_AUTH_URL ?? process.env.AUTH_BASE_URL;
-
-  if (!value) {
-    return billingError(
-      "BILLING_CONFIGURATION_ERROR",
-      "A cobrança Sandbox não está configurada.",
-    );
-  }
-
+function sandboxCallbackOrigin(): string | null {
+  const value = process.env.ASAAS_SANDBOX_CALLBACK_ORIGIN?.trim();
+  if (!value) return null;
   try {
-    return new URL(value).origin;
+    const url = new URL(value);
+    if (
+      url.protocol !== "https:" ||
+      url.username ||
+      url.password ||
+      (url.pathname !== "/" && url.pathname !== "") ||
+      url.search ||
+      url.hash
+    ) return null;
+    return url.origin;
   } catch {
-    return billingError(
-      "BILLING_CONFIGURATION_ERROR",
-      "A cobrança Sandbox não está configurada.",
-    );
+    return null;
   }
 }
 
@@ -127,6 +126,7 @@ export function isSandboxCheckoutEnabled(): boolean {
     process.env.BILLING_SANDBOX_ENABLED === "true" &&
     process.env.APP_ENV !== "production" &&
     process.env.ASAAS_ENV === "sandbox" &&
+    Boolean(sandboxCallbackOrigin()) &&
     Boolean(apiKey?.startsWith("$aact_hmlg_")) &&
     Boolean(process.env.ASAAS_SANDBOX_ACCOUNT_ID) &&
     Boolean(webhookToken && webhookToken.length >= 32 && webhookToken.length <= 255)
@@ -475,6 +475,14 @@ async function createCheckout(
     );
   }
 
+  const baseUrl = sandboxCallbackOrigin();
+  if (!baseUrl) {
+    return billingError(
+      "BILLING_CONFIGURATION_ERROR",
+      "O retorno HTTPS do checkout Sandbox não está configurado.",
+    );
+  }
+
   const pending = await createPendingOrder(userId, method);
 
   if (!pending.shouldCreateCheckout) {
@@ -489,8 +497,6 @@ async function createCheckout(
       ...(needsReconciliation ? { ambiguous: true } : {}),
     };
   }
-
-  const baseUrl = configuredBaseUrl();
 
   try {
     const callbacks = {
