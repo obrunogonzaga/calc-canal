@@ -176,6 +176,21 @@ export async function sendPasswordResetEmail(
   );
 }
 
+export async function sendSubscriptionCancellationEmail(
+  recipient: string,
+  paidUntil: Date,
+): Promise<void> {
+  const date = paidUntil.toLocaleDateString("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+  });
+  await sendAuthEmail(
+    "Assinatura PRO cancelada no PreçoPronto",
+    `Sua assinatura PRO foi cancelada. Não haverá novas renovações. O acesso já pago permanece até ${date}. Seus produtos continuam salvos.`,
+    `<p>Sua assinatura PRO foi cancelada. Não haverá novas renovações.</p><p>O acesso já pago permanece até ${date}. Seus produtos continuam salvos.</p>`,
+    recipient,
+  );
+}
+
 export function resetMailerForTests(): void {
   transporter = undefined;
 }

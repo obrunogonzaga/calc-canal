@@ -5,6 +5,13 @@ import {
   processAsaasCheckoutWebhook,
   verifyAsaasWebhookToken,
 } from "@/lib/server/billing";
+import {
+  isSubscriptionPaymentEvent,
+  isSubscriptionEvent,
+  processSubscriptionPaymentWebhook,
+  processSubscriptionWebhook,
+  SubscriptionPaymentWebhookError,
+} from "@/lib/server/subscription-payment-webhook";
 
 import {
   billingErrorResponse,
@@ -28,12 +35,19 @@ export async function POST(request: NextRequest) {
       return billingResponse({ error: "Não autorizado." }, 401);
     }
 
-    const result = await processAsaasCheckoutWebhook(
-      await readBillingBody(request),
-    );
+    const body = await readBillingBody(request);
+    const result = isSubscriptionPaymentEvent(body)
+      ? await processSubscriptionPaymentWebhook(body)
+      : isSubscriptionEvent(body)
+        ? await processSubscriptionWebhook(body)
+        : await processAsaasCheckoutWebhook(body);
 
     return billingResponse({ received: true, ...result });
   } catch (error) {
+    if (error instanceof SubscriptionPaymentWebhookError) {
+      return billingResponse({ error: error.message, code: error.code },
+        error.code === "RETRY" ? 503 : 422);
+    }
     return billingErrorResponse(error);
   }
 }

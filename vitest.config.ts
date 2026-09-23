@@ -40,7 +40,10 @@ export default defineConfig({
         "src/components/account/DraftBridge.tsx",
         "src/components/account/BillingClient.tsx",
         "src/lib/server/asaas-client.ts",
+        "src/lib/server/asaas-subscription-client.ts",
         "src/lib/server/billing.ts",
+        "src/lib/server/subscription-lifecycle.ts",
+        "src/lib/server/subscription-payment-webhook.ts",
       ],
       reporter: ["text", "json", "html"],
       thresholds: {

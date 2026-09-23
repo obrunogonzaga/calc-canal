@@ -1,6 +1,6 @@
 # PreçoPronto
 
-Calculadora gratuita de preço e contribuição por unidade para vendedores de marketplaces. Prévia do MVP: cadastro e simulações salvas podem ser habilitados em ambiente de testes; catálogo de produtos e cobrança ainda não estão disponíveis.
+Calculadora gratuita de preço e contribuição por unidade para vendedores de marketplaces. O MVP inclui cadastro, simulações salvas, catálogo e cobrança de teste no Asaas Sandbox. A operação comercial real ainda depende de domínio, hospedagem, políticas e credenciais de produção.
 
 ## Desenvolvimento
 
@@ -21,7 +21,7 @@ npm run build
 npm start
 ```
 
-Vitest testa cálculo, parsing, tarifas, PDF, cadastro, consentimentos e persistência isolada de simulações. A integração exige PostgreSQL e SMTP de teste configurados (veja o guia de cadastro abaixo). A cobertura destes módulos é exigida em pelo menos 70% de linhas, branches, funções e statements; páginas estáticas não entram nessa métrica. CI executa os mesmos gates. QA visual deve cobrir 360 px e desktop.
+Vitest testa cálculo, parsing, tarifas, PDF, cadastro, catálogo, cobrança e persistência isolada. A integração exige PostgreSQL e SMTP de teste configurados (veja os guias abaixo). A cobertura destes módulos é exigida em pelo menos 70% de linhas, branches, funções e statements; páginas estáticas não entram nessa métrica. CI executa os mesmos gates. QA visual deve cobrir 360 px e desktop.
 
 ## Como calcular
 
@@ -49,7 +49,7 @@ Copie `.env.example` e configure `NEXT_PUBLIC_SITE_URL` somente após confirmar 
 - [MVP e PRD no GitHub](https://github.com/obrunogonzaga/calc-canal/issues/2)
 - [Ficha de decisões e limites desta entrega](docs/milestone-1.md)
 
-Não marcar a prontidão de produção como concluída por um build ou por testes com mocks. Cadastro/pagamento pertencem aos milestones seguintes.
+Não marcar a prontidão de produção como concluída por um build ou por testes com mocks. Ver [homologação Asaas](docs/asaas-sandbox.md) antes de habilitar o checkout de teste.
 
 ### Hospedagem comercial inicial
 
@@ -57,4 +57,4 @@ O fundador indicou o VPS Hostinger caso o Hobby não permita a operação comerc
 
 ## Cadastro em ambiente de testes
 
-A branch de onboarding adiciona PostgreSQL + Better Auth e uma caixa SMTP local. Veja [configuração e evidências](docs/account-onboarding.md) e [caixa de teste](docs/local-mailbox.md). `AUTH_ENABLED=false` mantém cadastro/API fechados por padrão. Nenhuma configuração de pagamento real foi adicionada.
+O onboarding usa PostgreSQL + Better Auth e uma caixa SMTP local. Veja [configuração e evidências](docs/account-onboarding.md) e [caixa de teste](docs/local-mailbox.md). `AUTH_ENABLED=false` mantém cadastro/API fechados por padrão. Nenhuma configuração de pagamento real foi adicionada.

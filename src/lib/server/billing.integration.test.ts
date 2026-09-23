@@ -141,7 +141,7 @@ function checkoutPayload(
           value: options.itemValue ?? 29.9,
         },
       ],
-      subscription: { id: "sub_test_123" },
+      subscription: { id: `sub_${order.id.replaceAll("-", "")}` },
     },
   };
 }
@@ -173,15 +173,19 @@ suite("billing integration", () => {
 
     const url = testDatabaseUrl();
     isolated.pool = new Pool({ connectionString: url.toString() });
-    const [productsSql, billingSql, pixBillingSql] = await Promise.all([
+    const [productsSql, billingSql, pixBillingSql, subscriptionSql, paymentsSql] = await Promise.all([
       readFile(new URL("../../../migrations/0002_products.sql", import.meta.url), "utf8"),
       readFile(new URL("../../../migrations/0005_billing.sql", import.meta.url), "utf8"),
       readFile(new URL("../../../migrations/0006_pix_billing.sql", import.meta.url), "utf8"),
+      readFile(new URL("../../../migrations/0007_subscription_lifecycle.sql", import.meta.url), "utf8"),
+      readFile(new URL("../../../migrations/0008_subscription_payments.sql", import.meta.url), "utf8"),
     ]);
 
     await isolated.pool.query(productsSql);
     await isolated.pool.query(billingSql);
     await isolated.pool.query(pixBillingSql);
+    await isolated.pool.query(subscriptionSql);
+    await isolated.pool.query(paymentsSql);
   });
 
   beforeEach(() => {
@@ -467,6 +471,18 @@ suite("billing integration", () => {
       recurringRenewal: "not_configured",
     });
     expect(status.paidUntil).toBeTruthy();
+  });
+
+  it("createCheckout_expiredProWithUncancelledCard_blocksSecondRecurringCharge", async () => {
+    const actor = await createActor("billing-old-card");
+    const checkout = await createCardCheckout(actor);
+    const stored = await orderRow(checkout.order.id);
+    await processAsaasCheckoutWebhook(checkoutPayload({
+      id: checkout.order.id, checkoutId: stored!.checkout_id!,
+    }));
+    await isolated.pool!.query("UPDATE account_entitlement SET expires_at = NOW() - INTERVAL '1 day' WHERE user_id = $1", [actor]);
+    await expect(createCardCheckout(actor)).rejects.toMatchObject({ code: "BILLING_SUBSCRIPTION_ACTIVE" });
+    await expect(createPixCheckout(actor)).rejects.toMatchObject({ code: "BILLING_SUBSCRIPTION_ACTIVE" });
   });
 
   it("processAsaasCheckoutWebhook_spoofedAccountAndOfferDoNotGrantAccess", async () => {
