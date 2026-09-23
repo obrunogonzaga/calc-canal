@@ -82,4 +82,48 @@ describe("BillingClient", () => {
     const [, init] = vi.mocked(fetch).mock.calls.find(([, options]) => options?.method === "POST")!;
     expect(JSON.parse(String(init?.body))).toEqual({ method: "pix" });
   });
+
+  it("cancelSubscription_requiresConfirmationAndKeepsPaidAccessVisible", async () => {
+    const active = {
+      plan: "pro", checkoutEnabled: false, paidUntil: "2026-10-22T23:59:59.000Z",
+      subscription: { linked: true, cancellationState: "not_requested" },
+    };
+    vi.mocked(fetch).mockImplementation(async (_input, init) => init?.method === "POST"
+      ? response({ ...active, subscription: { linked: true, cancellationState: "confirmed" } })
+      : response(active));
+    vi.stubGlobal("confirm", vi.fn(() => true));
+    const user = userEvent.setup();
+    render(<BillingClient />);
+    await user.click(await screen.findByRole("button", { name: "Cancelar próximas renovações" }));
+    expect(confirm).toHaveBeenCalledOnce();
+    expect(await screen.findByText(/Renovação cancelada/)).toBeInTheDocument();
+    expect(screen.getByText(/Seu catálogo PRO está disponível/)).toBeInTheDocument();
+    const [, init] = vi.mocked(fetch).mock.calls.find(([, options]) => options?.method === "POST")!;
+    expect(JSON.parse(String(init?.body))).toEqual({ action: "cancel" });
+  });
+
+  it("recoverCheckout_pendingCardOffersManualPaymentVerification", async () => {
+    vi.mocked(fetch).mockResolvedValue(response({
+      plan: "free", checkoutEnabled: false,
+      order: { id: "order-pending", method: "card", status: "checkout_created" },
+    }));
+    const user = userEvent.setup();
+    render(<BillingClient />);
+    await user.click(await screen.findByRole("button", { name: "Verificar pagamento no Asaas" }));
+    const [, init] = vi.mocked(fetch).mock.calls.find(([, options]) => options?.method === "POST")!;
+    expect(JSON.parse(String(init?.body))).toEqual({ action: "recover_checkout" });
+  });
+
+  it("overdueRenewal_showsRegularizationAndKeepsPaidPeriod", async () => {
+    vi.mocked(fetch).mockResolvedValue(response({
+      plan: "pro", checkoutEnabled: false, paidUntil: "2026-10-22T23:59:59.000Z",
+      renewalIssue: { dueDate: "2026-10-22", invoiceUrl: "https://sandbox.asaas.com/i/test" },
+    }));
+    render(<BillingClient />);
+    expect(await screen.findByText(/A renovação de/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Regularizar na fatura do Asaas" })).toHaveAttribute(
+      "href", "https://sandbox.asaas.com/i/test",
+    );
+    expect(screen.getByText(/Seu catálogo PRO está disponível/)).toBeInTheDocument();
+  });
 });

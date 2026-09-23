@@ -44,7 +44,12 @@ export interface BillingStatus {
   checkoutEnabled: boolean;
   order?: BillingOrderView;
   paidUntil?: string;
-  recurringRenewal: "not_configured";
+  subscription?: {
+    linked: boolean;
+    cancellationState: "not_requested" | "requested" | "unknown" | "confirmed";
+  };
+  renewalIssue?: { dueDate?: string; invoiceUrl?: string };
+  recurringRenewal: "not_configured" | "active" | "pending_cancellation" | "cancelled";
 }
 
 export interface BillingCheckoutResult extends BillingStatus {
@@ -70,6 +75,17 @@ interface BillingOrderRow {
   provider_status: string | null;
   subscription_id: string | null;
   period_end: Date | string | null;
+}
+
+interface CardSubscriptionRow {
+  subscription_id: string | null;
+  initial_payment_id: string | null;
+  cancellation_state: "not_requested" | "requested" | "unknown" | "confirmed";
+}
+
+interface RenewalIssueRow {
+  due_date: Date | string | null;
+  invoice_url: string | null;
 }
 
 interface WebhookPayload {
@@ -269,6 +285,39 @@ async function latestOrder(
   return result.rows[0];
 }
 
+async function currentCardSubscription(
+  client: PoolClient,
+  userId: string,
+): Promise<CardSubscriptionRow | undefined> {
+  const result = await client.query<CardSubscriptionRow>(
+    `
+      SELECT subscription_id, initial_payment_id, cancellation_state
+      FROM billing_order
+      WHERE user_id = $1 AND method = 'card' AND status = 'paid'
+      ORDER BY paid_at DESC, created_at DESC
+      LIMIT 1
+    `,
+    [userId],
+  );
+  return result.rows[0];
+}
+
+async function latestRenewalIssue(client: PoolClient, userId: string): Promise<RenewalIssueRow | undefined> {
+  const result = await client.query<RenewalIssueRow>(`
+    SELECT p.due_date, p.invoice_url FROM billing_payment_cycle p
+    JOIN billing_order b ON b.id = p.order_id
+    WHERE p.user_id = $1 AND p.state = 'overdue' AND p.is_initial = FALSE
+      AND b.cancellation_state <> 'confirmed'
+      AND NOT EXISTS (
+        SELECT 1 FROM billing_payment_cycle newer
+        WHERE newer.order_id = p.order_id AND newer.state = 'confirmed'
+          AND newer.due_date >= p.due_date
+      )
+    ORDER BY p.due_date DESC NULLS LAST LIMIT 1
+  `, [userId]);
+  return result.rows[0];
+}
+
 async function withTransaction<T>(
   action: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
@@ -291,10 +340,10 @@ export async function getBillingStatus(userId: string): Promise<BillingStatus> {
   const client = await getDb().connect();
 
   try {
-    const [expiresAt, order] = await Promise.all([
-      getActiveEntitlement(client, userId),
-      latestOrder(client, userId),
-    ]);
+    const expiresAt = await getActiveEntitlement(client, userId);
+    const order = await latestOrder(client, userId);
+    const subscription = await currentCardSubscription(client, userId);
+    const renewalIssue = await latestRenewalIssue(client, userId);
     const active = isActivePro(expiresAt);
 
     return {
@@ -302,9 +351,22 @@ export async function getBillingStatus(userId: string): Promise<BillingStatus> {
       checkoutEnabled: isSandboxCheckoutEnabled(),
       ...(order ? { order: orderView(order) } : {}),
       ...(active && expiresAt ? { paidUntil: toIsoString(expiresAt) } : {}),
-      // Renewal needs a correlated subscription and payment webhook. This
-      // first Checkout-only flow intentionally grants only its first period.
-      recurringRenewal: "not_configured",
+      ...(subscription
+        ? {
+            subscription: {
+              linked: Boolean(subscription.subscription_id && subscription.initial_payment_id),
+              cancellationState: subscription.cancellation_state,
+            },
+          }
+        : {}),
+      ...(renewalIssue ? { renewalIssue: {
+        ...(renewalIssue.due_date ? { dueDate: new Date(renewalIssue.due_date).toISOString().slice(0, 10) } : {}),
+        ...(renewalIssue.invoice_url ? { invoiceUrl: renewalIssue.invoice_url } : {}),
+      } } : {}),
+      recurringRenewal: !subscription?.subscription_id || !subscription.initial_payment_id
+        ? "not_configured"
+        : subscription.cancellation_state === "confirmed" ? "cancelled"
+          : subscription.cancellation_state === "not_requested" ? "active" : "pending_cancellation",
     };
   } finally {
     client.release();
@@ -751,6 +813,8 @@ async function grantFirstPeriod(
           provider_status = $3,
           subscription_id = COALESCE(subscription_id, $4),
           status = 'paid',
+          period_start = COALESCE(period_start, NOW()),
+          period_end = COALESCE(period_end, $5),
           paid_at = NOW(),
           updated_at = NOW()
         WHERE id = $1
@@ -760,6 +824,7 @@ async function grantFirstPeriod(
         payload.checkout.id,
         payload.checkout.status ?? "PAID",
         payload.checkout.subscriptionId ?? null,
+        activeUntil,
       ],
     );
 

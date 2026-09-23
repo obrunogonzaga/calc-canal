@@ -141,7 +141,7 @@ function checkoutPayload(
           value: options.itemValue ?? 29.9,
         },
       ],
-      subscription: { id: "sub_test_123" },
+      subscription: { id: `sub_${order.id.replaceAll("-", "")}` },
     },
   };
 }
@@ -173,15 +173,19 @@ suite("billing integration", () => {
 
     const url = testDatabaseUrl();
     isolated.pool = new Pool({ connectionString: url.toString() });
-    const [productsSql, billingSql, pixBillingSql] = await Promise.all([
+    const [productsSql, billingSql, pixBillingSql, subscriptionSql, paymentsSql] = await Promise.all([
       readFile(new URL("../../../migrations/0002_products.sql", import.meta.url), "utf8"),
       readFile(new URL("../../../migrations/0005_billing.sql", import.meta.url), "utf8"),
       readFile(new URL("../../../migrations/0006_pix_billing.sql", import.meta.url), "utf8"),
+      readFile(new URL("../../../migrations/0007_subscription_lifecycle.sql", import.meta.url), "utf8"),
+      readFile(new URL("../../../migrations/0008_subscription_payments.sql", import.meta.url), "utf8"),
     ]);
 
     await isolated.pool.query(productsSql);
     await isolated.pool.query(billingSql);
     await isolated.pool.query(pixBillingSql);
+    await isolated.pool.query(subscriptionSql);
+    await isolated.pool.query(paymentsSql);
   });
 
   beforeEach(() => {
