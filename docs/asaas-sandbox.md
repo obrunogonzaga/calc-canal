@@ -30,4 +30,10 @@ QA da tela Plano em 23/09: conta PRO inspecionada no navegador local em desktop 
 
 Esses testes usaram URL temporária e token no Sandbox. O log do Asaas registrou uma falha transitória de handshake antes de uma entrega posterior com HTTP 200; a URL temporária não serve como endpoint comercial. Antes de vender: endpoint público estável e monitorado, políticas comerciais finais, suporte, emissão fiscal e credenciais de produção separadas. Não habilitar cobranças reais a partir deste teste.
 
+## Reteste local da issue #11 em 23/09/2026
+
+Em PostgreSQL descartável, com SMTP local, as migrações, lint, verificação de tipos, 227 testes (incluindo os 84 de integração), cobertura e build passaram. Cobertura dos módulos configurados: 86,31% de linhas/statements, 74,29% de branches e 91,64% de funções. Este reteste não fez chamada ao Asaas nem mediu o tempo entre Webhook real e atualização da interface.
+
+O checkout local não tinha configuração Sandbox e não havia navegador conectado para QA visual nesta sessão. A meta de ativação em até 60 segundos, atualização do cartão e renovação automática com recusa continuam sem aceite. A interface e a API atuais não oferecem troca de cartão da assinatura; esse fluxo precisa ser definido e implementado antes de ser homologado. A [API do Asaas para atualizar cartão da assinatura](https://docs.asaas.com/reference/atualizar-cartao-de-credito-assinatura) exige cartão ou token e não realiza cobrança imediata. Dados de cartão não devem ser enviados a este repositório ou registrados em evidências.
+
 Fontes: [Sandbox](https://docs.asaas.com/docs/sandbox), [Checkout recorrente](https://docs.asaas.com/docs/checkout-com-assinatura-recorrente), [eventos de Checkout](https://docs.asaas.com/docs/eventos-para-checkout), [eventos de cobrança](https://docs.asaas.com/docs/webhook-para-cobrancas) e [remoção da assinatura](https://docs.asaas.com/reference/remover-assinatura).
