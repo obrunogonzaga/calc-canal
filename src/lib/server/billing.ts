@@ -312,6 +312,7 @@ async function latestRenewalIssue(client: PoolClient, userId: string): Promise<R
       AND NOT EXISTS (
         SELECT 1 FROM billing_payment_cycle newer
         WHERE newer.order_id = p.order_id AND newer.state = 'confirmed'
+          AND newer.is_initial = FALSE
           AND newer.due_date >= p.due_date
       )
     ORDER BY p.due_date DESC NULLS LAST LIMIT 1

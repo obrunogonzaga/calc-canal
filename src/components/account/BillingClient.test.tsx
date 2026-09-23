@@ -102,6 +102,28 @@ describe("BillingClient", () => {
     expect(JSON.parse(String(init?.body))).toEqual({ action: "cancel" });
   });
 
+  it("cancelSubscription_uncertainProviderResponse_showsVerificationWithoutSecondCancel", async () => {
+    const paid = { plan: "pro", checkoutEnabled: false,
+      paidUntil: "2026-10-22T23:59:59.000Z" };
+    let statusReads = 0;
+    vi.mocked(fetch).mockImplementation(async (_input, init) => {
+      if (init?.method === "POST") return response({
+        error: "O Asaas não confirmou o cancelamento.", code: "CANCELLATION_PENDING",
+      }, 409);
+      statusReads += 1;
+      return response({ ...paid, subscription: { linked: true,
+        cancellationState: statusReads === 1 ? "not_requested" : "unknown" } });
+    });
+    vi.stubGlobal("confirm", vi.fn(() => true));
+    const user = userEvent.setup();
+    render(<BillingClient />);
+    await user.click(await screen.findByRole("button", { name: "Cancelar próximas renovações" }));
+    expect(await screen.findByRole("button", { name: "Verificar cancelamento" })).toBeInTheDocument();
+    expect(screen.getByText(/Cancelamento em verificação/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cancelar próximas renovações" })).not.toBeInTheDocument();
+    expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(1);
+  });
+
   it("recoverCheckout_pendingCardOffersManualPaymentVerification", async () => {
     vi.mocked(fetch).mockResolvedValue(response({
       plan: "free", checkoutEnabled: false,

@@ -43,6 +43,7 @@ export default defineConfig({
         "src/lib/server/asaas-subscription-client.ts",
         "src/lib/server/billing.ts",
         "src/lib/server/subscription-lifecycle.ts",
+        "src/lib/server/billing-reconciliation.ts",
         "src/lib/server/subscription-payment-webhook.ts",
       ],
       reporter: ["text", "json", "html"],

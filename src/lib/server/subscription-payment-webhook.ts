@@ -5,13 +5,15 @@ import {
   type AsaasCheckoutPayment,
   type AsaasSandboxSubscriptionClient,
 } from "./asaas-subscription-client";
-import { addOneCalendarMonth } from "./billing";
+import { addOneCalendarMonth, saoPauloToday } from "./billing";
 import { getDb } from "./db";
 import { sendSubscriptionCancellationEmail } from "./mailer";
+import { recoverPaidCheckoutWithOutcome, SubscriptionLifecycleError } from "./subscription-lifecycle";
 
 type PaymentEvent = "PAYMENT_CONFIRMED" | "PAYMENT_RECEIVED" | "PAYMENT_OVERDUE" |
   "PAYMENT_CREDIT_CARD_CAPTURE_REFUSED" | "PAYMENT_REFUNDED" | "PAYMENT_CHARGEBACK_REQUESTED";
 type PaymentState = "overdue" | "confirmed" | "refunded" | "chargeback";
+const MAX_EARLY_RENEWAL_DAYS = 45;
 
 interface Payload {
   id: string;
@@ -149,6 +151,14 @@ function parse(value: unknown): Payload | null {
   if (dueDate !== undefined && (typeof dueDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(dueDate))) {
     throw new SubscriptionPaymentWebhookError("INVALID", "Data da cobrança inválida.");
   }
+  const originalDueDate = payment.originalDueDate;
+  if (originalDueDate !== undefined && originalDueDate !== null &&
+    (typeof originalDueDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(originalDueDate))) {
+    throw new SubscriptionPaymentWebhookError("INVALID", "Data original da cobrança inválida.");
+  }
+  // Forcing OVERDUE in Sandbox moves dueDate; originalDueDate keeps the paid cycle's anchor.
+  const cycleDueDate = typeof originalDueDate === "string" ? originalDueDate :
+    typeof dueDate === "string" ? dueDate : undefined;
   if (payment.checkoutSession !== undefined && !validId(payment.checkoutSession)) {
     throw new SubscriptionPaymentWebhookError("INVALID", "Checkout da cobrança inválido.");
   }
@@ -171,7 +181,7 @@ function parse(value: unknown): Payload | null {
     payment: {
       id: payment.id,
       ...(typeof payment.subscription === "string" ? { subscriptionId: payment.subscription } : {}),
-      ...(dueDate ? { dueDate } : {}),
+      ...(cycleDueDate ? { dueDate: cycleDueDate } : {}),
       ...(safeInvoiceUrl ? { invoiceUrl: safeInvoiceUrl } : {}),
       ...(typeof payment.checkoutSession === "string" ? { checkoutSession: payment.checkoutSession } : {}),
       ...(typeof payment.status === "string" ? { status: payment.status } : {}),
@@ -185,7 +195,9 @@ function dueDateEnd(dueDate: string): Date {
   if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== dueDate) {
     throw new SubscriptionPaymentWebhookError("INVALID", "Data da cobrança inválida.");
   }
-  if (date.getTime() > Date.now() + 7 * 86_400_000) {
+  const maxDueDate = new Date(`${saoPauloToday()}T12:00:00.000Z`);
+  maxDueDate.setUTCDate(maxDueDate.getUTCDate() + MAX_EARLY_RENEWAL_DAYS);
+  if (dueDate > maxDueDate.toISOString().slice(0, 10)) {
     throw new SubscriptionPaymentWebhookError("INVALID", "Cobrança futura fora do período permitido.");
   }
   return addOneCalendarMonth(date);
@@ -211,6 +223,17 @@ async function recalculateEntitlement(client: PoolClient, userId: string): Promi
   `, [userId, paidUntil && paidUntil.getTime() > Date.now() ? "pro" : "free", paidUntil]);
 }
 
+async function rejectCorrelation(payload: Payload): Promise<{
+  duplicate: boolean; granted: boolean; outcome: string;
+}> {
+  const inserted = await getDb().query(`
+    INSERT INTO billing_payment_event (event_id, payment_id, event_type, outcome)
+    VALUES ($1, $2, $3, 'rejected_correlation')
+    ON CONFLICT (event_id) DO NOTHING RETURNING event_id
+  `, [payload.id, payload.payment.id, payload.event]);
+  return { duplicate: !inserted.rows[0], granted: false, outcome: "rejected_correlation" };
+}
+
 export async function processSubscriptionPaymentWebhook(
   value: unknown,
   provider?: AsaasSandboxSubscriptionClient,
@@ -219,10 +242,53 @@ export async function processSubscriptionPaymentWebhook(
 }> {
   const payload = parse(value);
   if (!payload) return { duplicate: false, granted: false, outcome: "ignored_event" };
-  if (payload.accountId !== process.env.ASAAS_SANDBOX_ACCOUNT_ID ||
-    !["CREDIT_CARD", "PIX"].includes(payload.payment.billingType) ||
+  if (payload.accountId !== process.env.ASAAS_SANDBOX_ACCOUNT_ID) {
+    throw new SubscriptionPaymentWebhookError("INVALID", "Evento de outra conta Asaas.");
+  }
+  const linkedHint = await getDb().query<{ id: string }>(`
+    SELECT id FROM billing_order
+    WHERE checkout_id = $1 OR subscription_id = $2 OR initial_payment_id = $3
+    LIMIT 2
+  `, [payload.payment.checkoutSession ?? null, payload.payment.subscriptionId ?? null, payload.payment.id]);
+  const hasLocalReference = linkedHint.rows.length > 0;
+  if (!["CREDIT_CARD", "PIX"].includes(payload.payment.billingType) ||
     Math.round(payload.payment.value * 100) !== 2990) {
-    throw new SubscriptionPaymentWebhookError("INVALID", "Cobrança não corresponde à conta e ao plano.");
+    if (!hasLocalReference) return { duplicate: false, granted: false, outcome: "ignored_external" };
+    throw new SubscriptionPaymentWebhookError("INVALID", "Cobrança vinculada não corresponde ao plano.");
+  }
+  if (payload.payment.billingType === "CREDIT_CARD" && payload.payment.checkoutSession) {
+    const unlinked = await getDb().query<{ id: string }>(`
+      SELECT id FROM billing_order
+      WHERE checkout_id = $1 AND method = 'card' AND status = 'paid'
+        AND (subscription_id IS NULL OR initial_payment_id IS NULL)
+      LIMIT 2
+    `, [payload.payment.checkoutSession]);
+    if (unlinked.rows.length > 1) {
+      throw new SubscriptionPaymentWebhookError("INVALID", "Checkout associado a mais de um pedido.");
+    }
+    if (unlinked.rows[0]) {
+      let verified: AsaasCheckoutPayment | undefined;
+      try {
+        verified = await (provider ?? createAsaasSandboxSubscriptionClient())
+          .findCheckoutPaymentBySession(payload.payment.checkoutSession);
+      } catch {
+        throw new SubscriptionPaymentWebhookError("RETRY", "Primeira cobrança aguarda consulta ao Asaas.");
+      }
+      if (!verified) {
+        throw new SubscriptionPaymentWebhookError("RETRY", "Primeira cobrança ainda não aparece no Asaas.");
+      }
+      if (verified.checkoutSession !== payload.payment.checkoutSession ||
+        verified.paymentId !== payload.payment.id ||
+        verified.subscriptionId !== payload.payment.subscriptionId ||
+        verified.billingType !== "CREDIT_CARD" ||
+        Math.round((verified.value ?? 0) * 100) !== 2990) {
+        return rejectCorrelation(payload);
+      }
+      if (["PAYMENT_CONFIRMED", "PAYMENT_RECEIVED"].includes(payload.event) &&
+        !["CONFIRMED", "RECEIVED"].includes(verified.paymentStatus ?? "")) {
+        throw new SubscriptionPaymentWebhookError("RETRY", "Confirmação financeira ainda não aparece no Asaas.");
+      }
+    }
   }
   let initialCandidate: AsaasCheckoutPayment | undefined;
   if (payload.payment.subscriptionId && !payload.payment.checkoutSession) {
@@ -232,18 +298,72 @@ export async function processSubscriptionPaymentWebhook(
       LIMIT 1
     `, [payload.payment.subscriptionId]);
     if (!linked.rows[0]?.initial_payment_id) {
-      const api = provider ?? createAsaasSandboxSubscriptionClient();
-      const found = linked.rows[0]
-        ? await api.findCheckoutPaymentBySession(linked.rows[0].checkout_id)
-        : await api.findInitialPaymentBySubscription(payload.payment.subscriptionId);
-      if (!found || found.subscriptionId !== payload.payment.subscriptionId ||
-        (linked.rows[0] && found.checkoutSession !== linked.rows[0].checkout_id) ||
-        found.billingType !== "CREDIT_CARD" ||
-        Math.round((found.value ?? 0) * 100) !== 2990 ||
-        !["CONFIRMED", "RECEIVED", "REFUNDED", "CHARGEBACK_REQUESTED"].includes(found.paymentStatus ?? "")) {
-        throw new SubscriptionPaymentWebhookError("RETRY", "Primeira cobrança ainda sem conciliação segura.");
+      const unlinked = linked.rows[0] ? true : Boolean((await getDb().query(`
+        SELECT id FROM billing_order WHERE method = 'card' AND status = 'paid'
+          AND subscription_id IS NULL AND checkout_id IS NOT NULL LIMIT 1
+      `)).rows[0]);
+      if (unlinked) {
+        const api = provider ?? createAsaasSandboxSubscriptionClient();
+        let found: AsaasCheckoutPayment | undefined;
+        try {
+          found = linked.rows[0]
+            ? await api.findCheckoutPaymentBySession(linked.rows[0].checkout_id)
+            : await api.findInitialPaymentBySubscription(payload.payment.subscriptionId);
+        } catch (error) {
+          if (linked.rows[0]) throw error;
+        }
+        const localCheckout = found && (await getDb().query<{ id: string }>(
+          "SELECT id FROM billing_order WHERE checkout_id = $1 LIMIT 1", [found.checkoutSession],
+        )).rows[0];
+        if (linked.rows[0] || localCheckout) {
+          if (!found || found.subscriptionId !== payload.payment.subscriptionId ||
+            (linked.rows[0] && found.checkoutSession !== linked.rows[0].checkout_id) ||
+            found.billingType !== "CREDIT_CARD" ||
+            Math.round((found.value ?? 0) * 100) !== 2990 ||
+            !["CONFIRMED", "RECEIVED", "REFUNDED", "CHARGEBACK_REQUESTED"].includes(found.paymentStatus ?? "")) {
+            throw new SubscriptionPaymentWebhookError("RETRY", "Primeira cobrança ainda sem conciliação segura.");
+          }
+          initialCandidate = found;
+        }
       }
-      initialCandidate = found;
+    }
+  }
+  let recoveredCheckout = false;
+  let duplicateFinancial = false;
+  const checkoutSession = payload.payment.checkoutSession ?? initialCandidate?.checkoutSession;
+  if (["PAYMENT_CONFIRMED", "PAYMENT_RECEIVED"].includes(payload.event) && checkoutSession) {
+    const pending = await getDb().query<{ user_id: string; method: "card" | "pix" }>(`
+      SELECT user_id, method FROM billing_order
+      WHERE checkout_id = $1 AND status IN ('creating', 'checkout_created', 'failed')
+      LIMIT 2
+    `, [checkoutSession]);
+    if (pending.rows.length > 1) {
+      throw new SubscriptionPaymentWebhookError("INVALID", "Checkout associado a mais de um pedido.");
+    }
+    const order = pending.rows[0];
+    if (order) {
+      const methodMatches = order.method === "card"
+        ? payload.payment.billingType === "CREDIT_CARD" && Boolean(payload.payment.subscriptionId)
+        : payload.payment.billingType === "PIX" && !payload.payment.subscriptionId;
+      if (!methodMatches || (payload.payment.status &&
+        !["CONFIRMED", "RECEIVED"].includes(payload.payment.status))) {
+        throw new SubscriptionPaymentWebhookError("INVALID", "Cobrança não corresponde ao checkout pendente.");
+      }
+      try {
+        const recovery = await recoverPaidCheckoutWithOutcome(
+          order.user_id,
+          provider ?? createAsaasSandboxSubscriptionClient(),
+          checkoutSession,
+          { paymentId: payload.payment.id, subscriptionId: payload.payment.subscriptionId },
+        );
+        recoveredCheckout = recovery.granted;
+        duplicateFinancial = recovery.newlyPaid && !recovery.granted;
+      } catch (error) {
+        if (error instanceof SubscriptionLifecycleError && error.code === "RECONCILIATION_INVALID") {
+          return rejectCorrelation(payload);
+        }
+        throw new SubscriptionPaymentWebhookError("RETRY", "Pagamento inicial aguarda conciliação no Asaas.");
+      }
     }
   }
   const client = await getDb().connect();
@@ -258,6 +378,10 @@ export async function processSubscriptionPaymentWebhook(
     `, [payload.payment.subscriptionId ?? null,
       payload.payment.checkoutSession ?? initialCandidate?.checkoutSession ?? null, payload.payment.id]);
     if (lookup.rows.length !== 1) {
+      if (lookup.rows.length === 0 && !hasLocalReference && !initialCandidate) {
+        await client.query("COMMIT");
+        return { duplicate: false, granted: false, outcome: "ignored_external" };
+      }
       if (["PAYMENT_OVERDUE", "PAYMENT_CREDIT_CARD_CAPTURE_REFUSED"].includes(payload.event) &&
         lookup.rows.length === 0) {
         await client.query("COMMIT");
@@ -368,7 +492,8 @@ export async function processSubscriptionPaymentWebhook(
     const state = oldState === "refunded" || oldState === "chargeback" ? oldState :
       oldState === "confirmed" && newState === "overdue" ? oldState : newState;
     const periodEnd = isInitial ? new Date(order.period_end!) :
-      previous.rows[0]?.period_end ?? dueDateEnd(payload.payment.dueDate!);
+      oldState === "overdue" ? dueDateEnd(payload.payment.dueDate!) :
+        previous.rows[0]?.period_end ?? dueDateEnd(payload.payment.dueDate!);
 
     if (isInitial && !order.initial_payment_id) {
       await client.query(`
@@ -381,14 +506,21 @@ export async function processSubscriptionPaymentWebhook(
         due_date, invoice_url, period_end, state, is_initial)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       ON CONFLICT (payment_id) DO UPDATE SET state = EXCLUDED.state,
+        due_date = CASE WHEN billing_payment_cycle.state = 'overdue'
+          THEN COALESCE(EXCLUDED.due_date, billing_payment_cycle.due_date)
+          ELSE billing_payment_cycle.due_date END,
+        period_end = CASE WHEN billing_payment_cycle.state = 'overdue'
+          THEN EXCLUDED.period_end ELSE billing_payment_cycle.period_end END,
         invoice_url = COALESCE(EXCLUDED.invoice_url, billing_payment_cycle.invoice_url), updated_at = NOW()
     `, [payload.payment.id, order.id, order.user_id, payload.payment.subscriptionId ?? null,
       payload.payment.dueDate ?? null, payload.payment.invoiceUrl ?? null, periodEnd, state, isInitial]);
     await recalculateEntitlement(client, order.user_id);
-    await client.query("UPDATE billing_payment_event SET outcome = $2 WHERE event_id = $1", [payload.id, state]);
+    const outcome = duplicateFinancial ? "paid_duplicate_financial" : state;
+    await client.query("UPDATE billing_payment_event SET outcome = $2 WHERE event_id = $1", [payload.id, outcome]);
     await client.query("COMMIT");
-    return { duplicate: false, granted: state === "confirmed" && oldState !== "confirmed" && !isInitial,
-      outcome: state };
+    return { duplicate: false, granted: state === "confirmed" &&
+      (recoveredCheckout || (oldState !== "confirmed" && !isInitial)),
+      outcome };
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;
