@@ -1,5 +1,5 @@
 /**
- * PreçoPronto — fórmulas de precificação marketplace (BR)
+ * Líquido — fórmulas de precificação marketplace (BR)
  *
  * Todos os valores monetários são convertidos para centavos antes do cálculo.
  * A margem desejada é contribuição estimada ÷ preço de venda.

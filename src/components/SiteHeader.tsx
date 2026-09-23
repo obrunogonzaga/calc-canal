@@ -7,11 +7,11 @@ export function SiteHeader() {
         Pular para o conteúdo
       </a>
       <div className="shell nav-row">
-        <Link href="/" className="wordmark" aria-label="PreçoPronto — início">
+        <Link href="/" className="wordmark" aria-label="Líquido — início">
           <span className="brand-mark" aria-hidden="true">
-            p<span>•</span>
+            L<span>•</span>
           </span>
-          Preço<span>Pronto</span>
+          Líquido
         </Link>
         <nav aria-label="Principal">
           <Link href="/#calculadora">Calculadora</Link>
@@ -32,9 +32,9 @@ export function SiteFooter() {
     <footer className="site-footer shell">
       <div>
         <Link className="wordmark small" href="/">
-          PreçoPronto<span aria-hidden="true">.</span>
+          Líquido<span aria-hidden="true">.</span>
         </Link>
-        <p>Mais clareza em cada preço.</p>
+        <p>O que sobra de cada venda, com as premissas à vista.</p>
       </div>
       <nav aria-label="Rodapé">
         <Link href="/ajuda">Ajuda e contato</Link>

@@ -2,14 +2,11 @@ import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 
 import type { PoolClient } from "pg";
 
-import {
-  AsaasClientError,
-  PRECO_PRONTO_PRO_VALUE,
-  createAsaasSandboxClient,
-} from "./asaas-client";
+import { PRO_CARD_ITEM_NAME, PRO_MONTHLY_AMOUNT_CENTS, PRO_PIX_ITEM_NAME } from "@/lib/billing-plan";
+import { AsaasClientError, createAsaasSandboxClient } from "./asaas-client";
 import { getDb } from "./db";
 
-const BILLING_AMOUNT_CENTS = Math.round(PRECO_PRONTO_PRO_VALUE * 100);
+const BILLING_AMOUNT_CENTS = PRO_MONTHLY_AMOUNT_CENTS;
 const CHECKOUT_EXPIRATION_MINUTES = 60;
 
 type BillingErrorCode =
@@ -733,13 +730,16 @@ function isPaidCheckoutOfferValid(
 ): boolean {
   const item = checkout.items?.[0];
   const valueCents = item?.value === undefined ? undefined : Math.round(item.value * 100);
+  // Existing Sandbox checkouts retain their original item names after the rebrand.
 
   return (
     checkout.billingTypes?.includes(method === "card" ? "CREDIT_CARD" : "PIX") === true &&
     checkout.chargeTypes?.includes(method === "card" ? "RECURRENT" : "DETACHED") === true &&
     checkout.items?.length === 1 &&
-    item?.name === "PreçoPronto PRO" &&
-    item.quantity === 1 &&
+    (method === "card"
+      ? [PRO_CARD_ITEM_NAME, "PreçoPronto PRO"].includes(item?.name ?? "")
+      : [PRO_PIX_ITEM_NAME, "PreçoPronto PRO — 1 mês", "PreçoPronto PRO"].includes(item?.name ?? "")) &&
+    item?.quantity === 1 &&
     valueCents === BILLING_AMOUNT_CENTS
   );
 }

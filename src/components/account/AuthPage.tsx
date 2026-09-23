@@ -21,7 +21,7 @@ export function AuthPage({
         <h1>{title}</h1>
         <p>{description}</p>
         <p className="auth-caption">
-          Mais clareza em cada preço. Uma conta por vez.
+          Descubra o preço e veja o que sobra. Uma conta por vez.
         </p>
       </div>
       <section className="auth-panel" aria-label={title}>

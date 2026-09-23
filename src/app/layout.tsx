@@ -9,8 +9,8 @@ const origin = getSiteOrigin();
 export const metadata: Metadata = {
   metadataBase: origin ? new URL(origin) : undefined,
   title: {
-    default: "PreçoPronto — calculadora de preços para marketplaces",
-    template: "%s | PreçoPronto",
+    default: "Líquido — calcule preços para marketplaces",
+    template: "%s | Líquido",
   },
   description:
     "Calcule seu preço de venda, entenda quanto sobra e confira cada custo. Simulação gratuita para vendedores de marketplaces, sem cadastro.",
@@ -18,12 +18,12 @@ export const metadata: Metadata = {
     ? { index: true, follow: true }
     : { index: false, follow: false },
   openGraph: {
-    title: "PreçoPronto — mais clareza em cada preço",
+    title: "Líquido — saiba o que sobra de cada venda",
     description:
       "Seu custo, suas taxas e sua margem. Faça uma simulação gratuita, sem cadastro.",
     locale: "pt_BR",
     type: "website",
-    siteName: "PreçoPronto",
+    siteName: "Líquido",
   },
 };
 export default function RootLayout({

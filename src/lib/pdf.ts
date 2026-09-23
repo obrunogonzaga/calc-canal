@@ -6,7 +6,7 @@ export function downloadBreakdownPdf(snapshot: SimulationSnapshot) {
   const { breakdown: b } = snapshot;
   const doc = new jsPDF();
   doc.setFontSize(22);
-  doc.text("PreçoPronto", 16, 22);
+  doc.text("Líquido", 16, 22);
   doc.setFontSize(11);
   let y = 35;
   function line(value: string) {
@@ -44,5 +44,5 @@ export function downloadBreakdownPdf(snapshot: SimulationSnapshot) {
   line(
     "Contribuição estimada não é lucro líquido. Confira as tarifas da sua conta e os custos não incluídos antes de usar o preço sugerido.",
   );
-  doc.save("precopronto-simulacao.pdf");
+  doc.save("liquido-simulacao.pdf");
 }

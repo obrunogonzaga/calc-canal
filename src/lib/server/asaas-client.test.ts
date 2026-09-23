@@ -1,10 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  ASAAS_SANDBOX_API_BASE_URL,
-  createAsaasSandboxClient,
-  PRECO_PRONTO_PRO_VALUE,
-} from "./asaas-client";
+import { PRO_MONTHLY_AMOUNT_BRL } from "@/lib/billing-plan";
+import { ASAAS_SANDBOX_API_BASE_URL, createAsaasSandboxClient } from "./asaas-client";
 
 const callbacks = {
   successUrl: "https://app.example.com/checkout/sucesso",
@@ -86,7 +83,7 @@ describe("createAsaasSandboxClient", () => {
     expect(request.headers).toEqual({
       Accept: "application/json",
       "Content-Type": "application/json",
-      "User-Agent": "PrecoPronto/0.1",
+      "User-Agent": "Liquido/0.1",
       access_token: "$aact_hmlg_test-only-key",
     });
     expect(String(request.body)).not.toContain("aact_hmlg");
@@ -98,9 +95,9 @@ describe("createAsaasSandboxClient", () => {
       callback: callbacks,
       items: [
         {
-          name: "PreçoPronto PRO",
+          name: "Líquido PRO",
           quantity: 1,
-          value: PRECO_PRONTO_PRO_VALUE,
+          value: PRO_MONTHLY_AMOUNT_BRL,
         },
       ],
       subscription: { cycle: "MONTHLY", nextDueDate: "2026-10-01" },
@@ -145,9 +142,9 @@ describe("createAsaasSandboxClient", () => {
       callback: callbacks,
       items: [
         {
-          name: "PreçoPronto PRO — 1 mês",
+          name: "Líquido PRO — 1 mês",
           quantity: 1,
-          value: PRECO_PRONTO_PRO_VALUE,
+          value: PRO_MONTHLY_AMOUNT_BRL,
         },
       ],
     });

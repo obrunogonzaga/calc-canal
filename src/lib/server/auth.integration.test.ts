@@ -240,7 +240,7 @@ describeWithDatabase("auth integration", () => {
 
     const verificationMessage = await mailboxMessage(
       email,
-      "Confirme seu e-mail no PreçoPronto",
+      "Confirme seu e-mail no Líquido",
     );
     const verificationUrl = emailLink(
       verificationMessage,
@@ -293,7 +293,7 @@ describeWithDatabase("auth integration", () => {
 
     const resetMessage = await mailboxMessage(
       email,
-      "Redefina sua senha do PreçoPronto",
+      "Redefina sua senha do Líquido",
     );
     const resetUrl = emailLink(resetMessage, "/api/auth/reset-password/");
     const resetLinkResponse = await authGet(new Request(resetUrl));

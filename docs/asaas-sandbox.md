@@ -1,6 +1,6 @@
-# Homologação do Checkout Asaas
+# Homologação do Checkout Asaas do Líquido
 
-O PreçoPronto só oferece o checkout de teste quando `BILLING_SANDBOX_ENABLED=true`, `APP_ENV` não é `production` e a configuração Sandbox está completa. A conta Asaas de produção não fornece chaves para o Sandbox.
+O Líquido só oferece o checkout de teste quando `BILLING_SANDBOX_ENABLED=true`, `APP_ENV` não é `production` e a configuração Sandbox está completa. A conta Asaas de produção não fornece chaves para o Sandbox. O rebrand não altera as contas, chaves ou evidências do Sandbox; não há cobrança em Produção.
 
 1. O titular cria uma conta separada em [sandbox.asaas.com](https://sandbox.asaas.com/) e gera uma chave Sandbox em **Integrações → Chaves de API**. Guardar a chave diretamente no gerenciador de segredos do ambiente; não enviar por chat, issue ou commit.
 2. Configurar `ASAAS_ENV=sandbox`, `ASAAS_SANDBOX_API_KEY`, `ASAAS_SANDBOX_ACCOUNT_ID` e um `ASAAS_SANDBOX_WEBHOOK_TOKEN` próprio com 32–255 caracteres. O token de Webhook não é a chave de API. Habilitar `BILLING_SANDBOX_ENABLED=true` somente no ambiente de testes.

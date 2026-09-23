@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
       status: 200,
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": 'attachment; filename="precos-preco-pronto.csv"',
+        "Content-Disposition": 'attachment; filename="precos-liquido.csv"',
         "Cache-Control": "private, no-store",
       },
     });

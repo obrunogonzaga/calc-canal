@@ -144,7 +144,7 @@ function createAuth() {
   const baseURL = readAuthUrl();
 
   return betterAuth({
-    appName: "PreçoPronto",
+    appName: "Líquido",
     baseURL,
     basePath: "/api/auth",
     secret: readAuthSecret(),
@@ -246,11 +246,11 @@ function createAuth() {
   });
 }
 
-export type PrecoProntoAuth = ReturnType<typeof createAuth>;
+export type LiquidoAuth = ReturnType<typeof createAuth>;
 
-let authInstance: PrecoProntoAuth | undefined;
+let authInstance: LiquidoAuth | undefined;
 
-export function getAuth(): PrecoProntoAuth {
+export function getAuth(): LiquidoAuth {
   authInstance ??= createAuth();
   return authInstance;
 }

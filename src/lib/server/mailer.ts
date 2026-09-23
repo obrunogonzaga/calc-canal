@@ -1,5 +1,6 @@
 import { isIP } from "node:net";
 import nodemailer, { type Transporter } from "nodemailer";
+import { siteName } from "@/lib/site";
 
 interface SmtpConfiguration {
   host: string;
@@ -155,9 +156,9 @@ export async function sendVerificationEmail(
   const safeUrl = escapeHtml(verificationUrl);
 
   await sendAuthEmail(
-    "Confirme seu e-mail no PreçoPronto",
-    `Confirme seu e-mail para entrar no PreçoPronto: ${verificationUrl}`,
-    `<p>Confirme seu e-mail para entrar no PreçoPronto.</p><p><a href="${safeUrl}">Confirmar e-mail</a></p>`,
+    `Confirme seu e-mail no ${siteName}`,
+    `Confirme seu e-mail para entrar no ${siteName}: ${verificationUrl}`,
+    `<p>Confirme seu e-mail para entrar no ${siteName}.</p><p><a href="${safeUrl}">Confirmar e-mail</a></p>`,
     recipient,
   );
 }
@@ -169,9 +170,9 @@ export async function sendPasswordResetEmail(
   const safeUrl = escapeHtml(resetUrl);
 
   await sendAuthEmail(
-    "Redefina sua senha do PreçoPronto",
-    `Redefina sua senha do PreçoPronto: ${resetUrl}`,
-    `<p>Use o link para redefinir sua senha do PreçoPronto.</p><p><a href="${safeUrl}">Redefinir senha</a></p>`,
+    `Redefina sua senha do ${siteName}`,
+    `Redefina sua senha do ${siteName}: ${resetUrl}`,
+    `<p>Use o link para redefinir sua senha do ${siteName}.</p><p><a href="${safeUrl}">Redefinir senha</a></p>`,
     recipient,
   );
 }
@@ -184,7 +185,7 @@ export async function sendSubscriptionCancellationEmail(
     timeZone: "America/Sao_Paulo",
   });
   await sendAuthEmail(
-    "Assinatura PRO cancelada no PreçoPronto",
+    `Assinatura PRO cancelada no ${siteName}`,
     `Sua assinatura PRO foi cancelada. Não haverá novas renovações. O acesso já pago permanece até ${date}. Seus produtos continuam salvos.`,
     `<p>Sua assinatura PRO foi cancelada. Não haverá novas renovações.</p><p>O acesso já pago permanece até ${date}. Seus produtos continuam salvos.</p>`,
     recipient,

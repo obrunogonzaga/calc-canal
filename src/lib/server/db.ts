@@ -3,7 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { Pool } from "pg";
 
 interface GlobalDatabaseState {
-  precoprontoDatabasePool?: Pool;
+  liquidoDatabasePool?: Pool;
 }
 
 const globalDatabase = globalThis as typeof globalThis & GlobalDatabaseState;
@@ -23,18 +23,18 @@ function hashToken(token: string): string {
 }
 
 export function getDb(): Pool {
-  if (!globalDatabase.precoprontoDatabasePool) {
-    globalDatabase.precoprontoDatabasePool = new Pool({
+  if (!globalDatabase.liquidoDatabasePool) {
+    globalDatabase.liquidoDatabasePool = new Pool({
       connectionString: getRequiredDatabaseUrl(),
     });
   }
 
-  return globalDatabase.precoprontoDatabasePool;
+  return globalDatabase.liquidoDatabasePool;
 }
 
 export async function closeDbForTests(): Promise<void> {
-  const pool = globalDatabase.precoprontoDatabasePool;
-  globalDatabase.precoprontoDatabasePool = undefined;
+  const pool = globalDatabase.liquidoDatabasePool;
+  globalDatabase.liquidoDatabasePool = undefined;
 
   if (pool) {
     await pool.end();

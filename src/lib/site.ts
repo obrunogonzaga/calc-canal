@@ -1,6 +1,6 @@
-export const siteName = "PreçoPronto";
+export const siteName = "Líquido";
 export const supportUrl =
-  "https://github.com/obrunogonzaga/calc-canal/issues/new";
+  "mailto:bruno@aifbr.com.br";
 
 // A preview must not claim a domain that has not been configured by its owner.
 export function getSiteOrigin(): string | undefined {

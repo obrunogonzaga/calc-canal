@@ -1,6 +1,6 @@
-# PreçoPronto
+# Líquido
 
-Calculadora gratuita de preço e contribuição por unidade para vendedores de marketplaces. O MVP inclui cadastro, simulações salvas, catálogo e cobrança de teste no Asaas Sandbox. A operação comercial real ainda depende de domínio, hospedagem, políticas e credenciais de produção.
+Calculadora gratuita de preço e contribuição por unidade para vendedores de marketplaces. O MVP inclui cadastro, simulações salvas, catálogo e cobrança de teste no Asaas Sandbox. A operação comercial real ainda depende de deploy, políticas e credenciais de produção.
 
 ## Desenvolvimento
 
@@ -41,19 +41,22 @@ Ver [escopo, fonte e revisão de tarifas](docs/milestone-1.md). Essa entrega nã
 
 ## Domínio e preview
 
-Copie `.env.example` e configure `NEXT_PUBLIC_SITE_URL` somente após confirmar o domínio de produção. Sem origem configurada, o site usa noindex, não anuncia canonical de produção e retorna sitemap vazio. As páginas informativas são da prévia; fornecedor e políticas comerciais finais estão pendentes.
+O domínio canônico planejado é `https://useliquido.com.br`; `https://useliquido.com` será o domínio secundário. Os dois domínios foram registrados pelo fundador e continuam estacionados na Hostinger enquanto o deploy é preparado. A aplicação ainda não está publicada nesses domínios e não há cobrança em Produção.
+
+Copie `.env.example` e configure `NEXT_PUBLIC_SITE_URL` somente quando o deploy HTTPS estiver pronto. Sem origem configurada, o site usa noindex, não anuncia canonical de produção e retorna sitemap vazio. As páginas informativas da prévia não substituem os documentos comerciais finais.
 
 ## Planejamento
 
 - [Milestone 1](https://github.com/obrunogonzaga/calc-canal/milestone/1)
 - [MVP e PRD no GitHub](https://github.com/obrunogonzaga/calc-canal/issues/2)
 - [Ficha de decisões e limites desta entrega](docs/milestone-1.md)
+- [Decisões comerciais atuais e gates para vender](docs/commercial-decisions.md)
 
 Não marcar a prontidão de produção como concluída por um build ou por testes com mocks. Ver [homologação Asaas](docs/asaas-sandbox.md) antes de habilitar o checkout de teste.
 
 ### Hospedagem comercial inicial
 
-O fundador indicou o VPS Hostinger caso o Hobby não permita a operação comercial. A restrição foi confirmada; `vercel.json` desativa novos deploys automáticos via Git. Deploys existentes não são removidos por essa opção. O servidor foi apenas inspecionado: publicação no VPS, domínio, TLS e backup da nova aplicação continuam pendentes.
+O VPS Hostinger é o caminho comercial inicial. `vercel.json` desativa novos deploys automáticos via Git. Deploys existentes não são removidos por essa opção. O servidor foi apenas inspecionado: publicação do Líquido no VPS, TLS, monitoramento e backup da nova aplicação continuam pendentes.
 
 ## Cadastro em ambiente de testes
 

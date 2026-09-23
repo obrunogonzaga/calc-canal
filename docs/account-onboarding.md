@@ -1,4 +1,6 @@
-# Cadastro e área logada — issue #7
+# Cadastro e área logada do Líquido — issue #7
+
+Este guia registra a implementação original da PR #19, hoje integrada à `main`; referências a marcos e pendências daquela época são históricas. O estado comercial atual está em [commercial-decisions.md](commercial-decisions.md).
 
 ## Entrega
 
@@ -8,7 +10,7 @@ Esta é uma PR encadeada sobre a branch da PR #18, ainda não integrada à main.
 
 ## Escolhas técnicas para o início na Hostinger
 
-- PostgreSQL separado para o PreçoPronto; nenhuma alteração nos bancos existentes do VPS.
+- PostgreSQL separado para o Líquido; nenhuma alteração nos bancos existentes do VPS.
 - Better Auth 1.7.5 com sessões persistidas, senha protegida, e-mail obrigatório e consentimentos versionados no servidor.
 - SMTP configurável; produção requer TLS e credenciais. Provedor/remetente de produção ainda pendentes. Não é necessário contratar Supabase para o banco/auth desta implementação.
 - `AUTH_ENABLED=false` por padrão: API retorna 404 e telas explicam indisponibilidade. Habilitar apenas após configurar dependências. Build com contas habilitadas precisa dessa flag; não é uma chave de mudança de plano comercial.
@@ -17,7 +19,7 @@ Esta é uma PR encadeada sobre a branch da PR #18, ainda não integrada à main.
 
 ## Ambiente de desenvolvimento
 
-Copie `.env.example` para `.env.local`, gere segredo próprio e configure dois bancos separados: `precopronto_local` e `precopronto_integration`. Nunca use banco de produção nos testes; a integração rejeita host externo e nome de banco diferente do dedicado.
+Copie `.env.example` para `.env.local`, gere segredo próprio e configure dois bancos separados: `precopronto_local` e `precopronto_integration`. Esses nomes são fixtures legados preservados para compatibilidade; nunca use banco de produção nos testes. A integração rejeita host externo e nome de banco diferente do dedicado.
 
 ```sh
 npm ci
@@ -65,4 +67,4 @@ A integração de simulações prepara sua tabela exclusivamente no banco de tes
 
 ## Não entregue como produção
 
-E-mail externo, deploy Hostinger, domínio, backup/restauração desse novo banco, liberação Asaas, chaves de pagamento, webhooks e cobranças reais não foram realizados. A infraestrutura local não é serviço de produção e não configura autorização para publicar.
+E-mail externo, deploy do Líquido na Hostinger, configuração HTTPS dos domínios registrados, backup/restauração desse novo banco, liberação Asaas, chaves de pagamento, webhooks e cobranças reais não foram realizados. Os domínios `useliquido.com.br` e `useliquido.com` permanecem estacionados. A infraestrutura local não é serviço de produção e não configura autorização para publicar.

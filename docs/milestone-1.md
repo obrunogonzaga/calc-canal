@@ -1,5 +1,9 @@
 # Milestone 1 — evidências e prontidão
 
+Este é o registro histórico do primeiro marco. As decisões comerciais vigentes e o estado atual das integrações estão em [commercial-decisions.md](commercial-decisions.md).
+
+**Nota de supersessão:** este registro preserva o nome PreçoPronto, o domínio proposto anteriormente e as decisões que estavam abertas naquele marco. Desde então, o fundador confirmou o rebrand para Líquido e registrou `useliquido.com.br` (canonical planejado) e `useliquido.com` (secundário). Os domínios continuam estacionados na Hostinger; não houve deploy ou cobrança em Produção. Consulte [commercial-decisions.md](commercial-decisions.md) para o estado atual.
+
 ## Escopo
 
 Issues #3, #4, #5 e #6. Branch de implementação: `feat/milestone-1-preco-pronto`.
