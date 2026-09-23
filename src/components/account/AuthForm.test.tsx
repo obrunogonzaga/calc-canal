@@ -99,6 +99,19 @@ describe("AuthForm", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("senhas não coincidem");
     expect(fetch).not.toHaveBeenCalled();
   });
+  it("signUp_localNonTestEmail_showsAllowedDomainWithoutRequest", async () => {
+    vi.mocked(fetch).mockResolvedValue(response());
+    const user = userEvent.setup();
+    render(<AuthForm mode="signup" />);
+    await user.type(screen.getByLabelText("Seu nome"), "Teste");
+    await user.type(screen.getByLabelText("E-mail", { exact: true }), "teste@example.com");
+    await user.type(screen.getByLabelText("Senha", { exact: true }), "senha-de-teste-segura");
+    await user.type(screen.getByLabelText("Confirme a senha"), "senha-de-teste-segura");
+    await user.click(screen.getByRole("checkbox", { name: /Li e aceito/ }));
+    await user.click(screen.getByRole("button", { name: "Criar conta gratuita" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("@precopronto.test");
+    expect(fetch).not.toHaveBeenCalled();
+  });
   it("requestReset_unknownEmail_showsGenericMessage", async () => {
     vi.mocked(fetch).mockResolvedValue(response());
     const user = userEvent.setup();
