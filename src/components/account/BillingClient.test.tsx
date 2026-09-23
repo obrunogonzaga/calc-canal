@@ -18,13 +18,34 @@ afterEach(() => {
 });
 
 describe("BillingClient", () => {
+  it("loadStatus_pendingRequest_showsAccessibleLoadingState", async () => {
+    vi.mocked(fetch).mockImplementation(() => new Promise<Response>(() => {}));
+    render(<BillingClient />);
+    expect(screen.getByRole("status")).toHaveTextContent("Carregando seu plano");
+  });
+
   it("checkoutDisabled_freeAccount_showsPriceWithoutPurchaseAction", async () => {
     vi.mocked(fetch).mockResolvedValue(response({ plan: "free", checkoutEnabled: false }));
     render(<BillingClient />);
     expect(await screen.findByText(/R\$ 29,90 por mês/)).toBeInTheDocument();
+    expect(screen.getByText("Free · nenhuma cobrança")).toBeInTheDocument();
+    expect(screen.getByText("Você está na prévia gratuita.")).toBeInTheDocument();
     expect(screen.getByText(/ainda está em homologação/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Testar cartão/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Testar Pix/ })).not.toBeInTheDocument();
+  });
+
+  it("loadStatus_initialFailure_allowsRetryWithoutReload", async () => {
+    vi.mocked(fetch)
+      .mockRejectedValueOnce(new Error("Consulta temporariamente indisponível."))
+      .mockResolvedValueOnce(response({ plan: "free", checkoutEnabled: false }));
+    const user = userEvent.setup();
+    render(<BillingClient />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Consulta temporariamente indisponível.");
+    await user.click(screen.getByRole("button", { name: "Tentar novamente" }));
+    expect(await screen.findByText("Você está na prévia gratuita.")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledTimes(2);
   });
 
   it("successReturn_withoutWebhook_keepsFreePlan", async () => {
