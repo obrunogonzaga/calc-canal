@@ -152,7 +152,15 @@ export function BillingClient() {
   }
 
   if (loading) return <p role="status">Carregando seu plano…</p>;
-  if (!status) return <p role="alert">{error || "Plano indisponível no momento."}</p>;
+  if (!status) return (
+    <div className="account-empty">
+      <p role="alert">{error || "Plano indisponível no momento."}</p>
+      <button className="button secondary" onClick={() => {
+        setLoading(true);
+        void refresh();
+      }}>Tentar novamente</button>
+    </div>
+  );
   const active = status.plan === "pro";
   const openCardSubscription = Boolean(status.subscription &&
     status.subscription.cancellationState !== "confirmed");

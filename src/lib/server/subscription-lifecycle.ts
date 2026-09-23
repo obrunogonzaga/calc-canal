@@ -89,18 +89,23 @@ async function verifiedCheckoutPayment(
     throw new SubscriptionLifecycleError("RECONCILIATION_UNAVAILABLE", "A cobrança ainda não foi encontrada no Asaas. Tente novamente mais tarde.");
   }
   if (payment.checkoutSession !== order.checkout_id ||
-    !["CONFIRMED", "RECEIVED"].includes(payment.paymentStatus ?? "") ||
     payment.billingType !== "CREDIT_CARD" ||
     Math.round((payment.value ?? 0) * 100) !== order.amount_cents ||
     (payment.dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(payment.dueDate))) {
     throw new SubscriptionLifecycleError("RECONCILIATION_INVALID", "A cobrança encontrada não corresponde ao pedido pago.");
   }
+  if (!["CONFIRMED", "RECEIVED"].includes(payment.paymentStatus ?? "")) {
+    throw new SubscriptionLifecycleError("RECONCILIATION_UNAVAILABLE", "A confirmação financeira ainda não aparece na consulta ao Asaas.");
+  }
   const subscription = await provider.getSubscription(payment.subscriptionId);
   if (subscription.id !== payment.subscriptionId || subscription.deleted === true ||
-    subscription.status !== "ACTIVE" || subscription.cycle !== "MONTHLY" ||
+    subscription.cycle !== "MONTHLY" ||
     subscription.billingType !== "CREDIT_CARD" ||
     Math.round((subscription.value ?? 0) * 100) !== order.amount_cents) {
     throw new SubscriptionLifecycleError("RECONCILIATION_INVALID", "A assinatura encontrada não corresponde ao plano pago.");
+  }
+  if (subscription.status !== "ACTIVE") {
+    throw new SubscriptionLifecycleError("RECONCILIATION_UNAVAILABLE", "A assinatura ainda não está ativa na consulta ao Asaas.");
   }
   return payment;
 }
@@ -139,10 +144,12 @@ export async function reconcileCardSubscription(
   return getBillingStatus(userId);
 }
 
-export async function recoverPaidCheckout(
+export async function recoverPaidCheckoutWithOutcome(
   userId: string,
   provider: AsaasSandboxSubscriptionClient = createAsaasSandboxSubscriptionClient(),
-): Promise<BillingStatus> {
+  expectedCheckoutSession?: string,
+  expectedPayment?: { paymentId: string; subscriptionId?: string },
+): Promise<{ status: BillingStatus; granted: boolean; newlyPaid: boolean }> {
   const pending = await getDb().query<SubscriptionOrder>(`
     SELECT b.id, b.checkout_id, b.subscription_id, b.initial_payment_id,
       b.cancellation_state, b.period_end, b.amount_cents, b.currency,
@@ -151,8 +158,9 @@ export async function recoverPaidCheckout(
     WHERE b.user_id = $1 AND b.method IN ('card', 'pix')
       AND b.status IN ('creating', 'checkout_created', 'failed')
       AND b.checkout_id IS NOT NULL
+      AND ($2::text IS NULL OR b.checkout_id = $2)
     ORDER BY b.created_at DESC LIMIT 1
-  `, [userId]);
+  `, [userId, expectedCheckoutSession ?? null]);
   const order = pending.rows[0];
   if (!order) {
     throw new SubscriptionLifecycleError("RECONCILIATION_UNAVAILABLE", "Não há checkout para verificar.");
@@ -166,14 +174,21 @@ export async function recoverPaidCheckout(
       throw new SubscriptionLifecycleError("RECONCILIATION_UNAVAILABLE", "A cobrança ainda não foi encontrada no Asaas.");
     }
     if (found.checkoutSession !== order.checkout_id || found.subscriptionId ||
-      found.billingType !== "PIX" || found.paymentStatus !== "RECEIVED" ||
+      found.billingType !== "PIX" ||
       Math.round((found.value ?? 0) * 100) !== order.amount_cents ||
       order.currency !== "BRL" || order.amount_cents !== 2990) {
       throw new SubscriptionLifecycleError("RECONCILIATION_INVALID", "A cobrança Pix não corresponde ao checkout.");
     }
+    if (found.paymentStatus !== "RECEIVED") {
+      throw new SubscriptionLifecycleError("RECONCILIATION_UNAVAILABLE", "O Pix ainda não aparece como recebido no Asaas.");
+    }
     payment = found;
   }
-  await transaction(async (client) => {
+  if (expectedPayment && (payment.paymentId !== expectedPayment.paymentId ||
+    (payment.subscriptionId ?? null) !== (expectedPayment.subscriptionId ?? null))) {
+    throw new SubscriptionLifecycleError("RECONCILIATION_INVALID", "O evento não corresponde à cobrança inicial do checkout.");
+  }
+  const recovery = await transaction(async (client) => {
     await client.query('SELECT id FROM "user" WHERE id = $1 FOR UPDATE', [userId]);
     const currentResult = await client.query<SubscriptionOrder>(`
       SELECT id, checkout_id, subscription_id, initial_payment_id,
@@ -185,7 +200,7 @@ export async function recoverPaidCheckout(
       current.amount_cents !== 2990 || current.currency !== "BRL" || current.method !== order.method) {
       throw new SubscriptionLifecycleError("RECONCILIATION_INVALID", "O checkout mudou durante a verificação.");
     }
-    if (current.status === "paid") return;
+    if (current.status === "paid") return { granted: false, newlyPaid: false };
     if (!["creating", "checkout_created", "failed"].includes(current.status ?? "")) {
       throw new SubscriptionLifecycleError("RECONCILIATION_INVALID", "O checkout não está em estado conciliável.");
     }
@@ -215,9 +230,20 @@ export async function recoverPaidCheckout(
         ON CONFLICT (user_id) DO UPDATE SET plan = 'pro',
           expires_at = EXCLUDED.expires_at, updated_at = NOW()
       `, [userId, periodEnd]);
+      return { granted: true, newlyPaid: true };
     }
+    return { granted: false, newlyPaid: true };
   });
-  return getBillingStatus(userId);
+  return { status: await getBillingStatus(userId), ...recovery };
+}
+
+export async function recoverPaidCheckout(
+  userId: string,
+  provider: AsaasSandboxSubscriptionClient = createAsaasSandboxSubscriptionClient(),
+  expectedCheckoutSession?: string,
+): Promise<BillingStatus> {
+  const result = await recoverPaidCheckoutWithOutcome(userId, provider, expectedCheckoutSession);
+  return result.status;
 }
 
 export async function cancelCardSubscription(

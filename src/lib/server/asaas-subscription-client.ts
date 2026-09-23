@@ -58,6 +58,22 @@ export interface AsaasSubscriptionPayment extends AsaasCheckoutPayment {
   subscriptionId: string;
 }
 
+/**
+ * Safe payment projection used by reconciliation queries. Recurring charges
+ * may not have a checkoutSession, so that field is intentionally optional.
+ */
+export interface AsaasSubscriptionPaymentRecord {
+  paymentId: string;
+  subscriptionId?: string;
+  paymentStatus?: string;
+  value?: number;
+  billingType?: string;
+  checkoutSession?: string;
+  dueDate?: string;
+  originalDueDate?: string;
+  invoiceUrl?: string;
+}
+
 export interface AsaasSubscriptionDetails {
   id: string;
   value?: number;
@@ -92,6 +108,10 @@ export interface AsaasSandboxSubscriptionClient {
   ): Promise<AsaasSubscriptionPayment | undefined>;
   findCheckoutPaymentBySession(checkoutSession: string): Promise<AsaasCheckoutPayment | undefined>;
   findInitialPaymentBySubscription(subscriptionId: string): Promise<AsaasSubscriptionPayment | undefined>;
+  listPaymentsForSubscription(
+    subscriptionId: string,
+  ): Promise<AsaasSubscriptionPaymentRecord[]>;
+  getPayment(paymentId: string): Promise<AsaasSubscriptionPaymentRecord>;
   getSubscription(subscriptionId: string): Promise<AsaasSubscriptionDetails>;
   isSubscriptionDeleted(subscriptionId: string): Promise<boolean>;
   cancelSubscription(
@@ -106,6 +126,11 @@ interface AsaasListPage {
 
 interface PaymentScan {
   matches: AsaasCheckoutPayment[];
+  reachedLimit: boolean;
+}
+
+interface SubscriptionPaymentScan {
+  matches: AsaasSubscriptionPaymentRecord[];
   reachedLimit: boolean;
 }
 
@@ -192,6 +217,14 @@ function validateSubscriptionId(value: string): string {
   return value;
 }
 
+function validatePaymentId(value: string): string {
+  if (!isSafeIdentifier(value) || !/^pay_[A-Za-z0-9_-]+$/.test(value)) {
+    throw inputError("paymentId deve ser um identificador de cobrança válido.");
+  }
+
+  return value;
+}
+
 function readOptionalString(value: unknown): string | undefined {
   if (value === undefined || value === null) return undefined;
   if (typeof value !== "string" || !value.trim() || value.length > 200) {
@@ -199,6 +232,41 @@ function readOptionalString(value: unknown): string | undefined {
   }
 
   return value;
+}
+
+function readOptionalDate(value: unknown): string | undefined {
+  const date = readOptionalString(value);
+  if (date === undefined) return undefined;
+
+  const timestamp = /^\d{4}-\d{2}-\d{2}$/.test(date)
+    ? Date.parse(`${date}T12:00:00Z`)
+    : NaN;
+  if (!Number.isFinite(timestamp) || new Date(timestamp).toISOString().slice(0, 10) !== date) {
+    throw invalidResponse();
+  }
+
+  return date;
+}
+
+function readOptionalInvoiceUrl(value: unknown): string | undefined {
+  const invoiceUrl = readOptionalString(value);
+  if (invoiceUrl === undefined) return undefined;
+
+  try {
+    const url = new URL(invoiceUrl);
+    if (
+      url.origin !== "https://sandbox.asaas.com" ||
+      !url.pathname.startsWith("/i/") ||
+      url.username ||
+      url.password ||
+      url.hash
+    ) {
+      throw new Error("unsupported invoice URL");
+    }
+    return url.toString();
+  } catch {
+    throw invalidResponse();
+  }
 }
 
 function readOptionalValue(value: unknown): number | undefined {
@@ -264,6 +332,51 @@ function readPaymentMatch(
   };
 }
 
+function readSubscriptionPaymentRecord(
+  value: unknown,
+  expectedSubscriptionId?: string,
+): AsaasSubscriptionPaymentRecord {
+  if (!value || typeof value !== "object") throw invalidResponse();
+
+  const payment = value as Record<string, unknown>;
+  if (!isSafeIdentifier(payment.id)) {
+    throw invalidResponse();
+  }
+  if (expectedSubscriptionId !== undefined) {
+    if (!isSubscriptionId(payment.subscription) || payment.subscription !== expectedSubscriptionId) {
+      throw invalidResponse();
+    }
+  } else if (
+    payment.subscription !== undefined &&
+    payment.subscription !== null &&
+    !isSubscriptionId(payment.subscription)
+  ) {
+    throw invalidResponse();
+  }
+
+  const paymentStatus = readOptionalString(payment.status);
+  const valueAmount = readOptionalValue(payment.value);
+  const billingType = readOptionalString(payment.billingType);
+  const checkoutSession = readOptionalString(payment.checkoutSession);
+  const dueDate = readOptionalDate(payment.dueDate);
+  const originalDueDate = readOptionalDate(payment.originalDueDate);
+  const invoiceUrl = readOptionalInvoiceUrl(payment.invoiceUrl);
+
+  return {
+    paymentId: payment.id,
+    ...(typeof payment.subscription === "string"
+      ? { subscriptionId: payment.subscription }
+      : {}),
+    ...(paymentStatus !== undefined ? { paymentStatus } : {}),
+    ...(valueAmount !== undefined ? { value: valueAmount } : {}),
+    ...(billingType !== undefined ? { billingType } : {}),
+    ...(checkoutSession !== undefined ? { checkoutSession } : {}),
+    ...(dueDate !== undefined ? { dueDate } : {}),
+    ...(originalDueDate !== undefined ? { originalDueDate } : {}),
+    ...(invoiceUrl !== undefined ? { invoiceUrl } : {}),
+  };
+}
+
 function samePayment(
   left: AsaasCheckoutPayment,
   right: AsaasCheckoutPayment,
@@ -322,6 +435,10 @@ function paymentListUrl(
 
 function subscriptionUrl(subscriptionId: string): string {
   return `${ASAAS_SANDBOX_API_BASE_URL}/subscriptions/${encodeURIComponent(subscriptionId)}`;
+}
+
+function paymentUrl(paymentId: string): string {
+  return `${ASAAS_SANDBOX_API_BASE_URL}/payments/${encodeURIComponent(paymentId)}`;
 }
 
 export function createAsaasSandboxSubscriptionClient(
@@ -449,6 +566,32 @@ export function createAsaasSandboxSubscriptionClient(
     return { matches, reachedLimit: true };
   }
 
+  async function scanSubscriptionPayments(
+    subscriptionId: string,
+    remoteFilter: boolean,
+  ): Promise<SubscriptionPaymentScan> {
+    const matches: AsaasSubscriptionPaymentRecord[] = [];
+
+    for (let page = 0; page < maxPages; page += 1) {
+      const url = new URL(`${ASAAS_SANDBOX_API_BASE_URL}/payments`);
+      url.searchParams.set("limit", String(pageSize));
+      url.searchParams.set("offset", String(page * pageSize));
+      if (remoteFilter) url.searchParams.set("subscription", subscriptionId);
+
+      const result = readListPage(await request(url.toString(), "GET", true));
+      for (const raw of result.data) {
+        if (!raw || typeof raw !== "object") continue;
+        const payment = raw as Record<string, unknown>;
+        if (payment.subscription !== subscriptionId) continue;
+        matches.push(readSubscriptionPaymentRecord(payment, subscriptionId));
+      }
+
+      if (!result.hasMore) return { matches, reachedLimit: false };
+    }
+
+    return { matches, reachedLimit: true };
+  }
+
   async function findCheckoutPaymentBySession(input: string): Promise<AsaasCheckoutPayment | undefined> {
       const checkoutSession = validateCheckoutSession(input);
 
@@ -496,6 +639,44 @@ export function createAsaasSandboxSubscriptionClient(
       }
       const match = selectSinglePayment(fallback.matches);
       return match ? { ...match, subscriptionId } : undefined;
+    },
+
+    async listPaymentsForSubscription(input) {
+      const subscriptionId = validateSubscriptionId(input);
+      const filtered = await scanSubscriptionPayments(subscriptionId, true);
+
+      if (filtered.matches.length > 0) {
+        if (filtered.reachedLimit) {
+          throw new AsaasSubscriptionClientError(
+            "A busca pelas cobranças da assinatura atingiu o limite de páginas.",
+            "SEARCH_LIMIT_REACHED",
+          );
+        }
+        return filtered.matches;
+      }
+
+      // The Sandbox can return an empty result for the subscription filter
+      // even when matching payments exist (notably for checkout-created
+      // subscriptions). Compensate with the same bounded global scan used for
+      // other reconciliation queries and enforce the exact subscription id.
+      const fallback = await scanSubscriptionPayments(subscriptionId, false);
+      if (fallback.reachedLimit) {
+        throw new AsaasSubscriptionClientError(
+          "A busca pelas cobranças da assinatura atingiu o limite de páginas.",
+          "SEARCH_LIMIT_REACHED",
+        );
+      }
+      return fallback.matches;
+    },
+
+    async getPayment(input) {
+      const paymentId = validatePaymentId(input);
+      const body = await request(paymentUrl(paymentId), "GET", true);
+      if (!body || typeof body !== "object") throw invalidResponse();
+
+      const payment = body as Record<string, unknown>;
+      if (payment.id !== paymentId) throw invalidResponse();
+      return readSubscriptionPaymentRecord(payment);
     },
 
     async getSubscription(input) {

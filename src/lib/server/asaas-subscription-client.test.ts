@@ -139,6 +139,109 @@ describe("createAsaasSandboxSubscriptionClient", () => {
     expect(requestUrl(fetchMock, 1).searchParams.has("subscription")).toBe(false);
   });
 
+  it("listPaymentsForSubscription_returnsAllCyclesAndExactSubscriptionOnly", async () => {
+    const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(list([
+        payment({ id: "pay_cycle_1", checkoutSession: "checkout-1" }),
+        payment({ id: "pay_other", subscription: "sub_other", customer: "cus_secret" }),
+      ], true))
+      .mockResolvedValueOnce(list([
+        payment({
+          id: "pay_cycle_2",
+          checkoutSession: null,
+          dueDate: "2026-11-01",
+          originalDueDate: "2026-10-01",
+          invoiceUrl: "https://sandbox.asaas.com/i/invoice-2",
+          customer: "cus_secret",
+          creditCard: { number: "4111111111111111" },
+        }),
+      ]));
+    const client = createAsaasSandboxSubscriptionClient({
+      env: sandboxEnv(), fetch: fetchMock, pageSize: 2, maxPages: 2,
+    });
+
+    await expect(client.listPaymentsForSubscription("sub_123")).resolves.toEqual([
+      {
+        paymentId: "pay_cycle_1",
+        subscriptionId: "sub_123",
+        paymentStatus: "CONFIRMED",
+        value: 29.9,
+        billingType: "CREDIT_CARD",
+        checkoutSession: "checkout-1",
+        dueDate: "2026-10-01",
+      },
+      {
+        paymentId: "pay_cycle_2",
+        subscriptionId: "sub_123",
+        paymentStatus: "CONFIRMED",
+        value: 29.9,
+        billingType: "CREDIT_CARD",
+        dueDate: "2026-11-01",
+        originalDueDate: "2026-10-01",
+        invoiceUrl: "https://sandbox.asaas.com/i/invoice-2",
+      },
+    ]);
+    expect(requestUrl(fetchMock, 0).searchParams.get("subscription")).toBe("sub_123");
+    expect(requestUrl(fetchMock, 1).searchParams.get("subscription")).toBe("sub_123");
+    expect(requestUrl(fetchMock, 1).searchParams.get("offset")).toBe("2");
+  });
+
+  it("listPaymentsForSubscription_emptyFilteredResult_fallsBackToBoundedGlobalScan", async () => {
+    const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(list([]))
+      .mockResolvedValueOnce(list([
+        payment({ id: "pay_other", subscription: "sub_other", customer: "cus_secret" }),
+        payment({ id: "pay_cycle_2", checkoutSession: null }),
+      ]));
+    const client = createAsaasSandboxSubscriptionClient({ env: sandboxEnv(), fetch: fetchMock });
+
+    await expect(client.listPaymentsForSubscription("sub_123")).resolves.toMatchObject([
+      { paymentId: "pay_cycle_2", subscriptionId: "sub_123" },
+    ]);
+    expect(requestUrl(fetchMock, 0).searchParams.get("subscription")).toBe("sub_123");
+    expect(requestUrl(fetchMock, 1).searchParams.has("subscription")).toBe(false);
+  });
+
+  it("listPaymentsForSubscription_truncatedSearch_returnsSearchLimitError", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      list([payment({ id: "pay_cycle_1" })], true),
+    );
+    const client = createAsaasSandboxSubscriptionClient({
+      env: sandboxEnv(), fetch: fetchMock, pageSize: 1, maxPages: 1,
+    });
+
+    await expect(client.listPaymentsForSubscription("sub_123"))
+      .rejects.toMatchObject({ code: "SEARCH_LIMIT_REACHED" });
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("getPayment_pixProjectionOmitsCheckoutAndSensitiveProviderFields", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(response({
+      id: "pay_pix_123",
+      subscription: null,
+      checkoutSession: null,
+      status: "RECEIVED",
+      value: 29.9,
+      billingType: "PIX",
+      dueDate: "2026-10-01",
+      customer: "cus_secret",
+      creditCard: { number: "4111111111111111", holderName: "Secret" },
+      bankSlipBarCode: "secret-barcode",
+    }));
+    const client = createAsaasSandboxSubscriptionClient({ env: sandboxEnv(), fetch: fetchMock });
+
+    await expect(client.getPayment("pay_pix_123")).resolves.toEqual({
+      paymentId: "pay_pix_123",
+      paymentStatus: "RECEIVED",
+      value: 29.9,
+      billingType: "PIX",
+      dueDate: "2026-10-01",
+    });
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      `${ASAAS_SANDBOX_API_BASE_URL}/payments/pay_pix_123`,
+    );
+  });
+
   it("findSubscriptionByCheckoutSession_paginatedFallback_filtersLocally", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
