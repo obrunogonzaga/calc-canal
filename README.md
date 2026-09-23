@@ -48,6 +48,7 @@ Copie `.env.example` e configure `NEXT_PUBLIC_SITE_URL` somente após confirmar 
 - [Milestone 1](https://github.com/obrunogonzaga/calc-canal/milestone/1)
 - [MVP e PRD no GitHub](https://github.com/obrunogonzaga/calc-canal/issues/2)
 - [Ficha de decisões e limites desta entrega](docs/milestone-1.md)
+- [Decisões comerciais atuais e gates para vender](docs/commercial-decisions.md)
 
 Não marcar a prontidão de produção como concluída por um build ou por testes com mocks. Ver [homologação Asaas](docs/asaas-sandbox.md) antes de habilitar o checkout de teste.
 

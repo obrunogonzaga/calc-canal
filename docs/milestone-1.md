@@ -1,5 +1,7 @@
 # Milestone 1 — evidências e prontidão
 
+Este é o registro histórico do primeiro marco. As decisões comerciais vigentes e o estado atual das integrações estão em [commercial-decisions.md](commercial-decisions.md).
+
 ## Escopo
 
 Issues #3, #4, #5 e #6. Branch de implementação: `feat/milestone-1-preco-pronto`.
