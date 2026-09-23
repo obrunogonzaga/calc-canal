@@ -1,5 +1,10 @@
 import type { PoolClient } from "pg";
 
+import {
+  createAsaasSandboxSubscriptionClient,
+  type AsaasCheckoutPayment,
+  type AsaasSandboxSubscriptionClient,
+} from "./asaas-subscription-client";
 import { addOneCalendarMonth } from "./billing";
 import { getDb } from "./db";
 import { sendSubscriptionCancellationEmail } from "./mailer";
@@ -206,7 +211,10 @@ async function recalculateEntitlement(client: PoolClient, userId: string): Promi
   `, [userId, paidUntil && paidUntil.getTime() > Date.now() ? "pro" : "free", paidUntil]);
 }
 
-export async function processSubscriptionPaymentWebhook(value: unknown): Promise<{
+export async function processSubscriptionPaymentWebhook(
+  value: unknown,
+  provider?: AsaasSandboxSubscriptionClient,
+): Promise<{
   duplicate: boolean; granted: boolean; outcome: string;
 }> {
   const payload = parse(value);
@@ -215,6 +223,39 @@ export async function processSubscriptionPaymentWebhook(value: unknown): Promise
     !["CREDIT_CARD", "PIX"].includes(payload.payment.billingType) ||
     Math.round(payload.payment.value * 100) !== 2990) {
     throw new SubscriptionPaymentWebhookError("INVALID", "Cobrança não corresponde à conta e ao plano.");
+  }
+  let initialCandidate: AsaasCheckoutPayment | undefined;
+  if (payload.payment.subscriptionId && !payload.payment.checkoutSession) {
+    const linked = await getDb().query<{ checkout_id: string; initial_payment_id: string | null }>(`
+      SELECT checkout_id, initial_payment_id FROM billing_order
+      WHERE subscription_id = $1 AND method = 'card' AND status = 'paid'
+      LIMIT 1
+    `, [payload.payment.subscriptionId]);
+    const unresolved = linked.rows[0]
+      ? linked.rows[0].initial_payment_id ? [] : linked.rows
+      : (await getDb().query<{ checkout_id: string }>(`
+          SELECT checkout_id FROM billing_order
+          WHERE subscription_id IS NULL AND method = 'card' AND status = 'paid'
+            AND initial_payment_id IS NULL AND checkout_id IS NOT NULL
+          ORDER BY paid_at DESC LIMIT 21
+        `)).rows;
+    if (unresolved.length > 20) {
+      throw new SubscriptionPaymentWebhookError("RETRY", "Há muitos checkouts sem conciliação.");
+    }
+    const api = provider ?? (unresolved.length ? createAsaasSandboxSubscriptionClient() : undefined);
+    for (const row of unresolved) {
+      const found = await api!.findCheckoutPaymentBySession(row.checkout_id);
+      if (found?.subscriptionId !== payload.payment.subscriptionId) continue;
+      if (initialCandidate) {
+        throw new SubscriptionPaymentWebhookError("INVALID", "Assinatura associada a mais de um checkout.");
+      }
+      if (found.checkoutSession !== row.checkout_id || found.billingType !== "CREDIT_CARD" ||
+        Math.round((found.value ?? 0) * 100) !== 2990 ||
+        !["CONFIRMED", "RECEIVED", "REFUNDED", "CHARGEBACK_REQUESTED"].includes(found.paymentStatus ?? "")) {
+        throw new SubscriptionPaymentWebhookError("RETRY", "Primeira cobrança ainda sem conciliação segura.");
+      }
+      initialCandidate = found;
+    }
   }
   const client = await getDb().connect();
   try {
@@ -225,7 +266,8 @@ export async function processSubscriptionPaymentWebhook(value: unknown): Promise
       FROM billing_order WHERE status = 'paid' AND
         (subscription_id = $1 OR checkout_id = $2 OR initial_payment_id = $3)
       ORDER BY paid_at DESC LIMIT 2
-    `, [payload.payment.subscriptionId ?? null, payload.payment.checkoutSession ?? null, payload.payment.id]);
+    `, [payload.payment.subscriptionId ?? null,
+      payload.payment.checkoutSession ?? initialCandidate?.checkoutSession ?? null, payload.payment.id]);
     if (lookup.rows.length !== 1) {
       if (["PAYMENT_OVERDUE", "PAYMENT_CREDIT_CARD_CAPTURE_REFUSED"].includes(payload.event) &&
         lookup.rows.length === 0) {
@@ -245,7 +287,8 @@ export async function processSubscriptionPaymentWebhook(value: unknown): Promise
     const validCard = order?.method === "card" && payload.payment.billingType === "CREDIT_CARD" &&
       Boolean(payload.payment.subscriptionId) &&
       (!order.subscription_id || order.subscription_id === payload.payment.subscriptionId) &&
-      (Boolean(order.subscription_id) || order.checkout_id === payload.payment.checkoutSession);
+      (Boolean(order.subscription_id) || order.checkout_id ===
+        (payload.payment.checkoutSession ?? initialCandidate?.checkoutSession));
     const validPix = order?.method === "pix" && payload.payment.billingType === "PIX" &&
       !payload.payment.subscriptionId &&
       (order.checkout_id === payload.payment.checkoutSession || order.initial_payment_id === payload.payment.id);
@@ -263,8 +306,33 @@ export async function processSubscriptionPaymentWebhook(value: unknown): Promise
       return { duplicate: true, granted: false, outcome: "duplicate" };
     }
 
+    if (order.method === "card" && !order.initial_payment_id && initialCandidate && order.period_end) {
+      if (order.checkout_id !== initialCandidate.checkoutSession) {
+        throw new SubscriptionPaymentWebhookError("INVALID", "Checkout inicial mudou durante a conciliação.");
+      }
+      const initialState: PaymentState = initialCandidate.paymentStatus === "REFUNDED" ? "refunded" :
+        initialCandidate.paymentStatus === "CHARGEBACK_REQUESTED" ? "chargeback" : "confirmed";
+      await client.query(`
+        UPDATE billing_order SET initial_payment_id = $2,
+          subscription_id = COALESCE(subscription_id, $3),
+          subscription_reconciled_at = NOW(), updated_at = NOW()
+        WHERE id = $1 AND initial_payment_id IS NULL
+      `, [order.id, initialCandidate.paymentId, payload.payment.subscriptionId]);
+      await client.query(`
+        INSERT INTO billing_payment_cycle (payment_id, order_id, user_id,
+          subscription_id, due_date, period_end, state, is_initial)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE)
+        ON CONFLICT (payment_id) DO NOTHING
+      `, [initialCandidate.paymentId, order.id, order.user_id,
+        payload.payment.subscriptionId, initialCandidate.dueDate ?? null,
+        order.period_end, initialState]);
+      order.initial_payment_id = initialCandidate.paymentId;
+      order.subscription_id = payload.payment.subscriptionId!;
+    }
+
     const isInitial = order.method === "pix" || order.initial_payment_id === payload.payment.id ||
-      (!order.initial_payment_id && order.checkout_id === payload.payment.checkoutSession);
+      (!order.initial_payment_id && order.checkout_id ===
+        (payload.payment.checkoutSession ?? initialCandidate?.checkoutSession));
     if (order.method === "card" && !order.subscription_id && !isInitial) {
       throw new SubscriptionPaymentWebhookError("RETRY", "Assinatura ainda sem vínculo seguro.");
     }

@@ -19,6 +19,7 @@ type BillingErrorCode =
   | "BILLING_CONFIGURATION_ERROR"
   | "BILLING_METHOD_CONFLICT"
   | "BILLING_ORDER_NOT_FOUND"
+  | "BILLING_SUBSCRIPTION_ACTIVE"
   | "BILLING_WEBHOOK_INVALID"
   | "BILLING_WEBHOOK_RETRY";
 
@@ -386,6 +387,17 @@ async function createPendingOrder(userId: string, method: "card" | "pix"): Promi
         "BILLING_ALREADY_PRO",
         "Sua conta já possui PRO ativo.",
       );
+    }
+
+    const recurring = await client.query<{ id: string }>(`
+      SELECT id FROM billing_order
+      WHERE user_id = $1 AND method = 'card' AND status = 'paid'
+        AND cancellation_state <> 'confirmed'
+      ORDER BY paid_at DESC LIMIT 1 FOR UPDATE
+    `, [userId]);
+    if (recurring.rows[0]) {
+      return billingError("BILLING_SUBSCRIPTION_ACTIVE",
+        "Há uma assinatura de cartão pendente de cancelamento. Regularize ou cancele antes de iniciar outra compra.");
     }
 
     const open = await client.query<BillingOrderRow>(

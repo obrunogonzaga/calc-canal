@@ -473,6 +473,18 @@ suite("billing integration", () => {
     expect(status.paidUntil).toBeTruthy();
   });
 
+  it("createCheckout_expiredProWithUncancelledCard_blocksSecondRecurringCharge", async () => {
+    const actor = await createActor("billing-old-card");
+    const checkout = await createCardCheckout(actor);
+    const stored = await orderRow(checkout.order.id);
+    await processAsaasCheckoutWebhook(checkoutPayload({
+      id: checkout.order.id, checkoutId: stored!.checkout_id!,
+    }));
+    await isolated.pool!.query("UPDATE account_entitlement SET expires_at = NOW() - INTERVAL '1 day' WHERE user_id = $1", [actor]);
+    await expect(createCardCheckout(actor)).rejects.toMatchObject({ code: "BILLING_SUBSCRIPTION_ACTIVE" });
+    await expect(createPixCheckout(actor)).rejects.toMatchObject({ code: "BILLING_SUBSCRIPTION_ACTIVE" });
+  });
+
   it("processAsaasCheckoutWebhook_spoofedAccountAndOfferDoNotGrantAccess", async () => {
     const actor = await createActor("billing-spoof");
     const checkout = await createCardCheckout(actor);

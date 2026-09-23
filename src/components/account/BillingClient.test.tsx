@@ -126,4 +126,16 @@ describe("BillingClient", () => {
     );
     expect(screen.getByText(/Seu catálogo PRO está disponível/)).toBeInTheDocument();
   });
+
+  it("expiredProWithUncancelledCard_hidesNewCheckoutAndOffersCancellation", async () => {
+    vi.mocked(fetch).mockResolvedValue(response({
+      plan: "free", checkoutEnabled: true,
+      subscription: { linked: true, cancellationState: "not_requested" },
+    }));
+    render(<BillingClient />);
+    expect(await screen.findByRole("button", { name: "Cancelar próximas renovações" })).toBeInTheDocument();
+    expect(screen.getByText(/ainda pode gerar cobranças/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Testar cartão no Asaas" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Testar Pix por um mês" })).not.toBeInTheDocument();
+  });
 });

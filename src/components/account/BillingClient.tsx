@@ -154,6 +154,8 @@ export function BillingClient() {
   if (loading) return <p role="status">Carregando seu plano…</p>;
   if (!status) return <p role="alert">{error || "Plano indisponível no momento."}</p>;
   const active = status.plan === "pro";
+  const openCardSubscription = Boolean(status.subscription &&
+    status.subscription.cancellationState !== "confirmed");
   const link = activeCheckoutLink(status.order);
   const staleOrder = Boolean(
     status.order?.status === "checkout_created" &&
@@ -173,7 +175,7 @@ export function BillingClient() {
       )}
       {error && <p role="alert" className="error-banner">{error}</p>}
       <section className="account-empty">
-        <p className="eyebrow">{active ? "PRO ativo" : "Free · nenhuma cobrança"}</p>
+        <p className="eyebrow">{active ? "PRO ativo" : openCardSubscription ? "Free · assinatura pendente" : "Free · nenhuma cobrança"}</p>
         <h2>{active ? "Seu catálogo PRO está disponível." : "Você está na prévia gratuita."}</h2>
         <p>
           {active
@@ -196,7 +198,7 @@ export function BillingClient() {
             )}
           </div>
         )}
-        {active && status.subscription && (
+        {status.subscription && (
           <div className="account-actions">
             {!status.subscription.linked && (
               <button className="button secondary" disabled={busy} onClick={() => subscriptionAction("reconcile")}>Vincular assinatura do cartão</button>
@@ -205,7 +207,9 @@ export function BillingClient() {
               <button className="button secondary" disabled={busy} onClick={() => subscriptionAction("cancel")}>Cancelar próximas renovações</button>
             )}
             {status.subscription.cancellationState === "confirmed" && (
-              <p role="status">Renovação cancelada. O PRO segue até {dateLabel(status.paidUntil)}. Seus produtos continuam salvos.</p>
+              <p role="status">Renovação cancelada. {active
+                ? `O PRO segue até ${dateLabel(status.paidUntil)}.`
+                : "O período PRO terminou."} Seus produtos continuam salvos.</p>
             )}
             {["requested", "unknown"].includes(status.subscription.cancellationState) && (
               <>
@@ -214,6 +218,11 @@ export function BillingClient() {
               </>
             )}
           </div>
+        )}
+        {!active && openCardSubscription && (
+          <p className="field-hint" role="status">
+            Sua assinatura de cartão ainda pode gerar cobranças. Vincule ou cancele a renovação antes de iniciar outra compra.
+          </p>
         )}
         {!active && status.order && (
           <p role="status">
@@ -231,7 +240,7 @@ export function BillingClient() {
             Este checkout venceu. Aguardamos a confirmação do Asaas antes de liberar outra tentativa.
           </p>
         )}
-        {!active && status.checkoutEnabled && (
+        {!active && status.checkoutEnabled && !openCardSubscription && (
           <>
             <p className="field-hint">
               Checkout de teste do Asaas. O cartão é mensal recorrente; no Pix, o QR Code e o copia e cola aparecem na página do Asaas. Pix libera um mês após pagamento confirmado e exige renovação manual. Dados de cartão ficam no Asaas.
@@ -250,7 +259,7 @@ export function BillingClient() {
             )}
           </>
         )}
-        {!active && !status.checkoutEnabled && (
+        {!active && !status.checkoutEnabled && !openCardSubscription && (
           <p className="field-hint">
             O checkout ainda está em homologação. Nenhuma assinatura pode ser contratada neste ambiente.
           </p>
