@@ -13,7 +13,9 @@ Não usar `invoiceUrl` como botão de “trocar cartão” antes de confirmar se
 
 ## Mensagem pronta para aprovação
 
-**Para:** integracoes@asaas.com.br  
+**De (proposto):** bruno@aifbr.com.br
+
+**Para:** integracoes@asaas.com.br
 **Assunto:** Asaas Checkout recorrente — troca de cartão em página hospedada
 
 Olá, equipe de Integrações do Asaas.
