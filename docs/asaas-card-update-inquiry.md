@@ -15,6 +15,8 @@ Não usar `invoiceUrl` como botão de “trocar cartão” antes de confirmar se
 
 Enviada com autorização do titular em 23/09/2026 às 19:08 UTC. A API do Hostinger Mail respondeu HTTP 204 e a mensagem foi conferida na pasta Enviados com destinatário, assunto e texto corretos. Isso comprova o envio pela caixa, não entrega, leitura ou resposta humana.
 
+O Asaas retornou uma confirmação automática às 19:08 UTC com protocolo **1739686**, informando que o atendimento será direcionado aos times. Ainda não respondeu às perguntas técnicas.
+
 **De (proposto):** bruno@aifbr.com.br
 
 **Para:** integracoes@asaas.com.br
