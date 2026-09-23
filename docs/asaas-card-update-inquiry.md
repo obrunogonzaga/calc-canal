@@ -1,6 +1,6 @@
 # Troca de cartão da assinatura — consulta ao Asaas
 
-Estado em 23/09/2026: **aguardando confirmação do Asaas; nenhuma mensagem enviada**. O Líquido usa o Checkout hospedado do Asaas para criar assinaturas mensais de cartão no Sandbox. O app não captura dados do cartão. A issue #11 exige homologar a troca do cartão sem criar assinatura duplicada nem cobrar fora do ciclo.
+Estado em 23/09/2026: **consulta enviada; aguardando resposta do Asaas**. O Líquido usa o Checkout hospedado do Asaas para criar assinaturas mensais de cartão no Sandbox. O app não captura dados do cartão. A issue #11 exige homologar a troca do cartão sem criar assinatura duplicada nem cobrar fora do ciclo.
 
 ## Evidência pública
 
@@ -11,7 +11,9 @@ Estado em 23/09/2026: **aguardando confirmação do Asaas; nenhuma mensagem envi
 
 Não usar `invoiceUrl` como botão de “trocar cartão” antes de confirmar seu efeito sobre a assinatura. Não pedir nem enviar credenciais, dados de cartão, IDs de clientes ou assinaturas na consulta inicial.
 
-## Mensagem pronta para aprovação
+## Mensagem enviada
+
+Enviada com autorização do titular em 23/09/2026 às 19:08 UTC. A API do Hostinger Mail respondeu HTTP 204 e a mensagem foi conferida na pasta Enviados com destinatário, assunto e texto corretos. Isso comprova o envio pela caixa, não entrega, leitura ou resposta humana.
 
 **De (proposto):** bruno@aifbr.com.br
 
