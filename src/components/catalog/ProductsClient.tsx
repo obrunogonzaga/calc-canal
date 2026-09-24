@@ -425,6 +425,8 @@ export function ProductsClient() {
           onClick={openNew}
           disabled={
             busy ||
+            loading ||
+            !data ||
             Boolean(data && data.entitlement.count >= data.entitlement.limit)
           }
         >
@@ -434,7 +436,7 @@ export function ProductsClient() {
           type="button"
           className="button secondary"
           onClick={() => void exportCsv()}
-          disabled={busy || loading}
+          disabled={busy || loading || !data}
         >
           Exportar catálogo
         </button>
@@ -492,6 +494,11 @@ export function ProductsClient() {
         <p role="alert" className="error-banner">
           {error}
         </p>
+      )}
+      {!data && !loading && (
+        <button type="button" className="button secondary" onClick={() => void refresh()}>
+          Tentar novamente
+        </button>
       )}
       {creating && (
         <section
@@ -614,7 +621,7 @@ export function ProductsClient() {
         <p role="status" className="catalog-loading">
           Carregando seus produtos…
         </p>
-      ) : items.length === 0 ? (
+      ) : !data ? null : items.length === 0 ? (
         <div className="account-empty">
           <h2>
             {status === "archived"
