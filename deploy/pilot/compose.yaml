@@ -1,0 +1,41 @@
+services:
+  web:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    image: liquido-pilot:${LIQUIDO_IMAGE_TAG:?Set LIQUIDO_IMAGE_TAG to the reviewed commit SHA}
+    restart: unless-stopped
+    environment:
+      APP_ENV: production
+      AUTH_ENABLED: "false"
+      BILLING_SANDBOX_ENABLED: "false"
+      NEXT_PUBLIC_SITE_URL: ""
+      HOSTNAME: 0.0.0.0
+      PORT: "3000"
+    networks:
+      - proxy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000').then(response => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: proxy
+      traefik.http.routers.liquido-pilot.rule: Host(`piloto.useliquido.com.br`)
+      traefik.http.routers.liquido-pilot.entrypoints: websecure
+      traefik.http.routers.liquido-pilot.tls.certresolver: letsencrypt
+      traefik.http.routers.liquido-pilot.middlewares: liquido-pilot-auth,liquido-pilot-noindex
+      traefik.http.middlewares.liquido-pilot-auth.basicauth.users: ${LIQUIDO_BASIC_AUTH:?Set LIQUIDO_BASIC_AUTH to a bcrypt user hash}
+      traefik.http.middlewares.liquido-pilot-auth.basicauth.removeheader: "true"
+      traefik.http.middlewares.liquido-pilot-noindex.headers.customresponseheaders.X-Robots-Tag: noindex, nofollow
+      traefik.http.services.liquido-pilot.loadbalancer.server.port: "3000"
+
+networks:
+  proxy:
+    external: true
