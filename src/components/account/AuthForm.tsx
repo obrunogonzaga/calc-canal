@@ -211,8 +211,9 @@ export function AuthForm({ mode }: { mode: Mode }) {
         )}
       {mode === "signin" && params.has("error") && (
         <p className="error-banner" role="alert">
-          O link de confirmação expirou ou é inválido. Informe seu e-mail e peça
-          outro link.
+          O link de confirmação expirou ou já foi usado. Se você já confirmou o
+          e-mail, tente entrar. Caso contrário, informe seu e-mail e peça outro
+          link.
         </p>
       )}
       {mode === "signup" && (
