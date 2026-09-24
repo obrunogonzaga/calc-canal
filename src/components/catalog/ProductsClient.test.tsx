@@ -30,6 +30,23 @@ afterEach(() => {
 });
 
 describe("ProductsClient", () => {
+  it("loadProducts_initialFailure_allowsRetryWithoutFalseEmptyState", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(response({ error: "Consulta temporariamente indisponível." }, 500))
+      .mockResolvedValueOnce(response(emptyCatalog));
+    const user = userEvent.setup();
+    render(<ProductsClient />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Consulta temporariamente indisponível.");
+    expect(screen.queryByText("Comece com um produto.")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Novo produto" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Exportar catálogo" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Tentar novamente" }));
+    expect(await screen.findByText("Comece com um produto.")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
   it("createProduct_failedSave_preservesInputsAndExplainsFailure", async () => {
     vi.mocked(fetch).mockImplementation(async (_path, init) =>
       init?.method === "POST"
