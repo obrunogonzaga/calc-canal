@@ -1,13 +1,51 @@
 import { getSiteOrigin } from "@/lib/site";
 import type { Metadata } from "next";
 import { InfoPage } from "@/components/InfoPage";
+import { supportUrl } from "@/lib/site";
+
+const accountPilot =
+  process.env.APP_ENV === "production" && process.env.AUTH_ENABLED === "true";
+
 export const metadata: Metadata = {
-  title: "Condições da prévia",
+  title: accountPilot ? "Condições do piloto restrito" : "Condições da prévia",
   alternates: getSiteOrigin()
     ? { canonical: getSiteOrigin() + "/termos" }
     : undefined,
 };
 export default function Terms() {
+  if (accountPilot) {
+    return (
+      <InfoPage title="Condições do piloto restrito">
+        <p className="notice">
+          O cadastro está disponível somente para e-mails convidados. Nesta
+          primeira etapa, usamos apenas contas próprias e dados fictícios. Não há
+          contratação, cobrança ou publicação de preços nos marketplaces.
+        </p>
+        <h2>Simulação e catálogo</h2>
+        <p>
+          Líquido estima preço e contribuição por unidade com os custos e taxas
+          informados. Confira as premissas antes de usar qualquer resultado. O
+          catálogo salva produtos para testar importação e recálculo; ele não
+          altera anúncios nem se conecta à sua conta de marketplace.
+        </p>
+        <h2>Dados permitidos no teste</h2>
+        <p>
+          Use somente produtos e valores fictícios. Não informe dados de
+          clientes, cartões, notas fiscais ou credenciais de marketplaces.
+          Confira a página de Privacidade antes de criar a conta.
+        </p>
+        <h2>Ajuda e encerramento</h2>
+        <p>
+          Para suporte, cópia ou exclusão dos dados de teste, escreva para{" "}
+          <a href={supportUrl}>bruno@aifbr.com.br</a>. O piloto pode ser
+          interrompido antes de uma oferta comercial. Condições finais de
+          assinatura, cancelamento, reembolso e documento fiscal serão
+          publicadas antes de qualquer venda.
+        </p>
+      </InfoPage>
+    );
+  }
+
   return (
     <InfoPage title="Condições desta prévia">
       <p className="notice">

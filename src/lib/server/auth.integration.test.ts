@@ -267,8 +267,8 @@ describeWithDatabase("auth integration", () => {
     expect(user.rows).toEqual([
       {
         termsAccepted: true,
-        termsVersion: "2026-09-22",
-        privacyVersion: "2026-09-22",
+        termsVersion: "2026-09-24",
+        privacyVersion: "2026-09-24",
         marketingConsent: true,
       },
     ]);
