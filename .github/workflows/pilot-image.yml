@@ -2,11 +2,6 @@ name: Pilot image
 
 on:
   pull_request:
-    paths:
-      - Dockerfile
-      - .dockerignore
-      - deploy/pilot/**
-      - .github/workflows/pilot-image.yml
   workflow_dispatch:
 
 jobs:
@@ -26,7 +21,7 @@ jobs:
             -e APP_ENV=production -e AUTH_ENABLED=false \
             -e BILLING_SANDBOX_ENABLED=false liquido-pilot:ci
           for attempt in $(seq 1 30); do
-            if curl --silent --fail http://127.0.0.1:3108/ > /dev/null; then break; fi
+            if curl --silent --fail --max-time 2 http://127.0.0.1:3108/ > /dev/null; then break; fi
             sleep 1
           done
           curl --silent --fail http://127.0.0.1:3108/ | grep -q 'noindex, nofollow'
@@ -35,6 +30,9 @@ jobs:
             -X POST http://127.0.0.1:3108/api/auth/sign-up/email)" = 404
           test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
             -X POST http://127.0.0.1:3108/api/billing/checkout)" = 503
+      - name: Show container logs on failure
+        if: failure()
+        run: docker logs --tail 100 liquido-pilot-ci || true
       - name: Remove test container
         if: always()
         run: docker rm -f liquido-pilot-ci 2>/dev/null || true

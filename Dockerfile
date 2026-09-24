@@ -18,7 +18,7 @@ RUN groupadd --gid 1001 liquido && useradd --uid 1001 --gid liquido --no-create-
 COPY --from=production-dependencies /app/node_modules ./node_modules
 COPY --from=build --chown=liquido:liquido /app/.next ./.next
 COPY --from=build /app/package.json ./package.json
-COPY --from=build /app/next.config.ts ./next.config.ts
+COPY --from=build /app/next.config.mjs ./next.config.mjs
 USER liquido
 EXPOSE 3000
 CMD ["npm", "run", "start"]

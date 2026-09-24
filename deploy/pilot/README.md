@@ -6,7 +6,7 @@ Destino planejado: `piloto.useliquido.com.br`, na stack isolada `liquido-pilot` 
 
 1. Revisar e integrar o commit escolhido. Construir e conferir a imagem desse SHA; o tag em `.env` deve ser o SHA revisado.
 2. Criar `A` para `piloto.useliquido.com.br` apontando para `82.112.245.152`, sem alterar os domínios principais. Confirmar resolução pública antes de solicitar TLS.
-3. Criar uma senha longa fora do repositório e gerar o par `usuario:hash` com `htpasswd -nbB`. Guardar o hash em `deploy/pilot/.env` apenas no servidor. Não enviar a senha pelo chat.
+3. Criar uma senha longa fora do repositório e gerar o par `usuario:hash` com `htpasswd -nB usuario`, digitando a senha no prompt. Guardar o hash em `deploy/pilot/.env` apenas no servidor. Não enviar a senha pelo chat nem passá-la como argumento de comando.
 4. Confirmar que a rede Docker externa `proxy` e o resolver TLS `letsencrypt` seguem ativos. A stack nova não altera a configuração do Traefik nem de outras aplicações.
 5. Confirmar com o fundador o escopo, a ação no VPS e o impacto esperado antes de qualquer alteração remota.
 
