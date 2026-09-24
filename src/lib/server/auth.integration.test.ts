@@ -190,7 +190,7 @@ describeWithDatabase("auth integration", () => {
     );
   });
 
-  it("authPost_inviteOnlyDifferentEmail_rejectsSignup", async () => {
+  it("authPost_inviteOnlyDifferentEmail_doesNotCreateAccount", async () => {
     const priorMode = process.env.SIGNUP_ACCESS;
     const priorAllowedEmails = process.env.PILOT_ALLOWED_EMAILS;
     const email = `uninvited-${randomUUID()}@precopronto.test`;
@@ -209,7 +209,8 @@ describeWithDatabase("auth integration", () => {
         }),
       );
 
-      expect(response.status).toBe(403);
+      // Better Auth returns a generic success for refused verified-email signups.
+      expect(response.status).toBe(200);
       const result = await getDb().query(
         'SELECT id FROM "user" WHERE email = $1',
         [email],
