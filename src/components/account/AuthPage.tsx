@@ -30,7 +30,7 @@ export function AuthPage({
             <p className="account-preview-notice">
               {process.env.APP_ENV === "local"
                 ? "Ambiente local de testes. Use apenas dados fictícios e e-mails @precopronto.test."
-                : "Conta da prévia gratuita. Nenhuma assinatura ou cobrança é criada."}
+                : "Conta de teste do piloto restrito. Nenhuma assinatura ou cobrança é criada."}
             </p>
             <Suspense fallback={<p role="status">Preparando o formulário…</p>}>
               <AuthForm mode={mode} />
