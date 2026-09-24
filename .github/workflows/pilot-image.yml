@@ -1,0 +1,40 @@
+name: Pilot image
+
+on:
+  pull_request:
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - deploy/pilot/**
+      - .github/workflows/pilot-image.yml
+  workflow_dispatch:
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Compose
+        run: |
+          LIQUIDO_IMAGE_TAG=ci LIQUIDO_BASIC_AUTH='pilot:$2y$05$abcdefghijklmnopqrstuv' \
+            docker compose -f deploy/pilot/compose.yaml config --quiet
+      - name: Build image
+        run: docker build -t liquido-pilot:ci .
+      - name: Smoke test restricted runtime
+        run: |
+          docker run -d --name liquido-pilot-ci -p 127.0.0.1:3108:3000 \
+            -e APP_ENV=production -e AUTH_ENABLED=false \
+            -e BILLING_SANDBOX_ENABLED=false liquido-pilot:ci
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail http://127.0.0.1:3108/ > /dev/null; then break; fi
+            sleep 1
+          done
+          curl --silent --fail http://127.0.0.1:3108/ | grep -q 'noindex, nofollow'
+          curl --silent --fail http://127.0.0.1:3108/robots.txt | grep -q 'Disallow: /'
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            -X POST http://127.0.0.1:3108/api/auth/sign-up/email)" = 404
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            -X POST http://127.0.0.1:3108/api/billing/checkout)" = 503
+      - name: Remove test container
+        if: always()
+        run: docker rm -f liquido-pilot-ci 2>/dev/null || true
