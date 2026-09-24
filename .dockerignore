@@ -8,3 +8,5 @@ coverage
 !.env.example
 npm-debug.log*
 deploy/pilot/.env
+deploy/pilot/secrets
+deploy/pilot/backup/private

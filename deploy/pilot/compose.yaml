@@ -5,11 +5,13 @@ services:
     build:
       context: ../..
       dockerfile: Dockerfile
+      args:
+        AUTH_ENABLED: ${LIQUIDO_AUTH_ENABLED:-false}
     image: liquido-pilot:${LIQUIDO_IMAGE_TAG:?Set LIQUIDO_IMAGE_TAG to the reviewed commit SHA}
     restart: unless-stopped
     environment:
       APP_ENV: production
-      AUTH_ENABLED: "false"
+      AUTH_ENABLED: ${LIQUIDO_AUTH_ENABLED:-false}
       BILLING_SANDBOX_ENABLED: "false"
       NEXT_PUBLIC_SITE_URL: ""
       HOSTNAME: 0.0.0.0

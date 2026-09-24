@@ -5,7 +5,8 @@ RUN npm ci
 
 FROM dependencies AS build
 COPY . .
-ENV NEXT_TELEMETRY_DISABLED=1
+ARG AUTH_ENABLED=false
+ENV AUTH_ENABLED=${AUTH_ENABLED} APP_ENV=production NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
 FROM dependencies AS production-dependencies

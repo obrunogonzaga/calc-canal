@@ -1,0 +1,51 @@
+services:
+  web:
+    build:
+      args:
+        AUTH_ENABLED: "true"
+    environment:
+      AUTH_ENABLED: "true"
+      SIGNUP_ACCESS: invite-only
+      PILOT_ALLOWED_EMAILS: ${PILOT_ALLOWED_EMAILS:?Set the invited email addresses}
+      BETTER_AUTH_URL: https://piloto.useliquido.com.br
+      SMTP_HOST: smtp.resend.com
+      SMTP_PORT: "465"
+      SMTP_SECURE: "true"
+      SMTP_FROM: "Líquido <nao-responda@useliquido.com.br>"
+      SMTP_USER: resend
+    secrets:
+      - pilot_auth_secret
+      - pilot_resend_api_key
+
+  migrator:
+    profiles: [migrate]
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+      target: build
+      args:
+        AUTH_ENABLED: "true"
+    image: liquido-pilot-migrator:${LIQUIDO_IMAGE_TAG:?Set the reviewed commit SHA}
+    environment:
+      APP_ENV: production
+      AUTH_ENABLED: "true"
+      BETTER_AUTH_URL: https://piloto.useliquido.com.br
+    depends_on:
+      db:
+        condition: service_healthy
+    secrets:
+      - pilot_db_password
+      - pilot_auth_secret
+      - pilot_resend_api_key
+    volumes:
+      - ./backup/start-web.mjs:/opt/liquido/start-web.mjs:ro
+    networks:
+      - database
+    entrypoint: ["node", "/opt/liquido/start-web.mjs"]
+    command: ["npm", "run", "db:migrate"]
+
+secrets:
+  pilot_auth_secret:
+    file: ./secrets/auth_secret
+  pilot_resend_api_key:
+    file: ./secrets/resend_api_key

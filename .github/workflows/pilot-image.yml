@@ -13,8 +13,18 @@ jobs:
         run: |
           LIQUIDO_IMAGE_TAG=ci LIQUIDO_BASIC_AUTH='pilot:$2y$05$abcdefghijklmnopqrstuv' \
             docker compose -f deploy/pilot/compose.yaml config --quiet
+          mkdir -p deploy/pilot/secrets
+          printf 'dummy-db-only\n' > deploy/pilot/secrets/postgres_password
+          printf 'dummy-auth-secret-at-least-32-characters\n' > deploy/pilot/secrets/auth_secret
+          printf 'dummy-resend-only\n' > deploy/pilot/secrets/resend_api_key
+          LIQUIDO_IMAGE_TAG=ci LIQUIDO_BASIC_AUTH='pilot:$2y$05$abcdefghijklmnopqrstuv' \
+            PILOT_ALLOWED_EMAILS=owner@example.test docker compose \
+            -f deploy/pilot/compose.yaml -f deploy/pilot/compose.database.yaml \
+            -f deploy/pilot/compose.accounts.yaml --profile migrate config --quiet
       - name: Build image
         run: docker build -t liquido-pilot:ci .
+      - name: Build account image
+        run: docker build --build-arg AUTH_ENABLED=true -t liquido-pilot:accounts-ci .
       - name: Smoke test restricted runtime
         run: |
           docker run -d --name liquido-pilot-ci -p 127.0.0.1:3108:3000 \

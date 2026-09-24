@@ -18,6 +18,7 @@ import {
   sendPasswordResetEmail,
   sendVerificationEmail as sendVerificationMessage,
 } from "./mailer";
+import { requireSignupAccess } from "./signup-access";
 
 const EMAIL_VERIFICATION_TTL_SECONDS = 60 * 60;
 const MIN_AUTH_SECRET_LENGTH = 32;
@@ -204,12 +205,15 @@ function createAuth() {
     databaseHooks: {
       user: {
         create: {
-          before: async (user) => ({
-            data: {
-              ...user,
-              ...resolveSignupConsent(user as SignupConsentInput),
-            },
-          }),
+          before: async (user) => {
+            requireSignupAccess(user.email);
+            return {
+              data: {
+                ...user,
+                ...resolveSignupConsent(user as SignupConsentInput),
+              },
+            };
+          },
         },
       },
     },
