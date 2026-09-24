@@ -144,7 +144,9 @@ describe("AuthForm", () => {
   it("verify_reusedLink_doesNotClaimSuccess", () => {
     routing.query = "verificado=1&error=INVALID_TOKEN";
     render(<AuthForm mode="signin" />);
-    expect(screen.getByRole("alert")).toHaveTextContent("inválido");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Se você já confirmou o e-mail, tente entrar",
+    );
     expect(
       screen.queryByText("E-mail confirmado. Entre para continuar."),
     ).not.toBeInTheDocument();

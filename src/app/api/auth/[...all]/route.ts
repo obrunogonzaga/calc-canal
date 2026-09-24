@@ -28,6 +28,7 @@ function invalidVerificationResponse(request: Request): Response {
     const redirectUrl = new URL(callbackUrl, authBaseUrl);
 
     if (redirectUrl.origin === authBaseUrl.origin) {
+      redirectUrl.searchParams.delete("verificado");
       redirectUrl.searchParams.set("error", "INVALID_TOKEN");
       return Response.redirect(redirectUrl);
     }
