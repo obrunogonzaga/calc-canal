@@ -298,7 +298,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
             <span>
               Li e aceito as{" "}
               <Link href="/termos" target="_blank">
-                condições da prévia
+                condições de uso
               </Link>{" "}
               e o{" "}
               <Link href="/privacidade" target="_blank">

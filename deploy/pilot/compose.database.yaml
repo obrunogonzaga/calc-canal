@@ -1,0 +1,49 @@
+services:
+  web:
+    build:
+      args:
+        AUTH_ENABLED: "false"
+    environment:
+      AUTH_ENABLED: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+    secrets:
+      - pilot_db_password
+    volumes:
+      - ./backup/start-web.mjs:/opt/liquido/start-web.mjs:ro
+    command: ["node", "/opt/liquido/start-web.mjs"]
+    networks:
+      - proxy
+      - database
+
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: liquido
+      POSTGRES_USER: liquido
+      POSTGRES_PASSWORD_FILE: /run/secrets/pilot_db_password
+    secrets:
+      - pilot_db_password
+    volumes:
+      - pilot_postgres_data:/var/lib/postgresql
+    networks:
+      - database
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+secrets:
+  pilot_db_password:
+    file: ./secrets/postgres_password
+
+volumes:
+  pilot_postgres_data:
+
+networks:
+  database:
+    internal: true

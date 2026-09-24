@@ -18,4 +18,6 @@ Copiar o checkout exato do SHA revisado para uma pasta própria da stack. Na pas
 
 Antes de ativar cadastro, provisionar PostgreSQL isolado com backup e restauração testada, SMTP externo com TLS e entrega comprovada, revisar Termos/Privacidade para o ambiente hospedado, executar migrações e testar isolamento entre duas contas. Isso exige outra alteração revisada e outra decisão de publicação. Não colocar credenciais de Produção do Asaas nesta etapa.
 
+O [guia do banco](backup/README.md) e o overlay `compose.accounts.yaml` preparam essa etapa sem alterar o site atual até que os requisitos sejam cumpridos. `SIGNUP_ACCESS` fica em modo `invite-only`; sem configuração explícita, o servidor recusa novos cadastros em produção.
+
 Para venda real, seguir as pendências das issues #3, #9, #10, #12, #14, #15, #16 e #30–#33 conforme o escopo escolhido para o piloto pago.

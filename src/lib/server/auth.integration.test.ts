@@ -190,6 +190,41 @@ describeWithDatabase("auth integration", () => {
     );
   });
 
+  it("authPost_inviteOnlyDifferentEmail_doesNotCreateAccount", async () => {
+    const priorMode = process.env.SIGNUP_ACCESS;
+    const priorAllowedEmails = process.env.PILOT_ALLOWED_EMAILS;
+    const email = `uninvited-${randomUUID()}@precopronto.test`;
+    process.env.SIGNUP_ACCESS = "invite-only";
+    process.env.PILOT_ALLOWED_EMAILS = "invited@precopronto.test";
+
+    try {
+      const response = await authPost(
+        makeAuthRequest("/sign-up/email", {
+          body: {
+            name: "Conta não convidada",
+            email,
+            password: "senha-de-teste-segura",
+            termsAccepted: true,
+          },
+        }),
+      );
+
+      // Better Auth returns a generic success for refused verified-email signups.
+      expect(response.status).toBe(200);
+      const result = await getDb().query(
+        'SELECT id FROM "user" WHERE email = $1',
+        [email],
+      );
+      expect(result.rowCount).toBe(0);
+    } finally {
+      if (priorMode === undefined) delete process.env.SIGNUP_ACCESS;
+      else process.env.SIGNUP_ACCESS = priorMode;
+      if (priorAllowedEmails === undefined)
+        delete process.env.PILOT_ALLOWED_EMAILS;
+      else process.env.PILOT_ALLOWED_EMAILS = priorAllowedEmails;
+    }
+  });
+
   it("authPost_signupVerifyLoginResetLogout_fullFlow", async () => {
     const email = `auth-test-${randomUUID()}@precopronto.test`;
     const password = "senha-de-teste-segura";
@@ -232,8 +267,8 @@ describeWithDatabase("auth integration", () => {
     expect(user.rows).toEqual([
       {
         termsAccepted: true,
-        termsVersion: "2026-09-22",
-        privacyVersion: "2026-09-22",
+        termsVersion: "2026-09-24",
+        privacyVersion: "2026-09-24",
         marketingConsent: true,
       },
     ]);

@@ -31,6 +31,8 @@ yarn-error.log*
 # env files
 .env*
 !.env.example
+/deploy/pilot/secrets/
+/deploy/pilot/backup/private/
 
 # typescript
 *.tsbuildinfo

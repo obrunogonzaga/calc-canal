@@ -1,7 +1,7 @@
 import { APIError } from "better-auth/api";
 
-export const TERMS_VERSION = "2026-09-22";
-export const PRIVACY_VERSION = "2026-09-22";
+export const TERMS_VERSION = "2026-09-24";
+export const PRIVACY_VERSION = "2026-09-24";
 
 export interface SignupConsentInput {
   termsAccepted?: unknown;

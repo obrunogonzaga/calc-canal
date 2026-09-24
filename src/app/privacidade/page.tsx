@@ -2,13 +2,51 @@ import type { Metadata } from "next";
 import { getSiteOrigin } from "@/lib/site";
 import { InfoPage } from "@/components/InfoPage";
 import { supportUrl } from "@/lib/site";
+
+const accountPilot =
+  process.env.APP_ENV === "production" && process.env.AUTH_ENABLED === "true";
+
 export const metadata: Metadata = {
-  title: "Privacidade da prévia",
+  title: accountPilot ? "Privacidade do piloto restrito" : "Privacidade da prévia",
   alternates: getSiteOrigin()
     ? { canonical: getSiteOrigin() + "/privacidade" }
     : undefined,
 };
 export default function Privacy() {
+  if (accountPilot) {
+    return (
+      <InfoPage title="Privacidade do piloto restrito">
+        <p className="notice">
+          Esta versão permite apenas contas próprias de teste, atrás de senha e
+          convite por e-mail. Use dados fictícios de produtos. O responsável
+          pelo teste é Bruno Gonzaga; dúvidas e pedidos sobre dados podem ser
+          enviados a <a href={supportUrl}>bruno@aifbr.com.br</a>.
+        </p>
+        <h2>Dados usados</h2>
+        <p>
+          Para criar a conta, tratamos nome, e-mail, senha protegida por hash,
+          sessões e registro do aceite. Simulações e produtos que você salvar
+          ficam ligados à sua conta. O cálculo avulso acontece no navegador;
+          não enviamos dados ao marketplace.
+        </p>
+        <h2>Onde ficam e quem envia e-mails</h2>
+        <p>
+          A aplicação e o banco isolado ficam no VPS da Hostinger. O Resend
+          envia os links necessários para confirmar o e-mail e recuperar a
+          senha. Não ativamos e-mails de marketing neste piloto. Cópias locais
+          do banco servem à recuperação; elas ainda não têm cópia externa.
+        </p>
+        <h2>Acesso e exclusão</h2>
+        <p>
+          Peça acesso, cópia ou exclusão dos dados de teste pelo contato acima.
+          A exclusão exige conferir a identidade e tratar as cópias de
+          segurança. Os prazos finais de retenção e exclusão serão definidos
+          antes de convidar outras pessoas ou abrir a venda.
+        </p>
+      </InfoPage>
+    );
+  }
+
   return (
     <InfoPage title="Privacidade desta prévia">
       <p className="notice">
