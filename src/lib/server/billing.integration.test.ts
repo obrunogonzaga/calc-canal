@@ -176,12 +176,13 @@ suite("billing integration", () => {
 
     const url = testDatabaseUrl();
     isolated.pool = new Pool({ connectionString: url.toString() });
-    const [productsSql, billingSql, pixBillingSql, subscriptionSql, paymentsSql] = await Promise.all([
+    const [productsSql, billingSql, pixBillingSql, subscriptionSql, paymentsSql, accountDataSql] = await Promise.all([
       readFile(new URL("../../../migrations/0002_products.sql", import.meta.url), "utf8"),
       readFile(new URL("../../../migrations/0005_billing.sql", import.meta.url), "utf8"),
       readFile(new URL("../../../migrations/0006_pix_billing.sql", import.meta.url), "utf8"),
       readFile(new URL("../../../migrations/0007_subscription_lifecycle.sql", import.meta.url), "utf8"),
       readFile(new URL("../../../migrations/0008_subscription_payments.sql", import.meta.url), "utf8"),
+      readFile(new URL("../../../migrations/0009_account_data_requests.sql", import.meta.url), "utf8"),
     ]);
 
     await isolated.pool.query(productsSql);
@@ -189,6 +190,7 @@ suite("billing integration", () => {
     await isolated.pool.query(pixBillingSql);
     await isolated.pool.query(subscriptionSql);
     await isolated.pool.query(paymentsSql);
+    await isolated.pool.query(accountDataSql);
   });
 
   beforeEach(() => {
@@ -225,6 +227,16 @@ suite("billing integration", () => {
     } finally {
       process.env.ASAAS_SANDBOX_CALLBACK_ORIGIN = original;
     }
+  });
+
+  it("createCardCheckout_pendingDeletion_doesNotCreateNewCharge", async () => {
+    const actor = await createActor("billing-deletion");
+    await isolated.pool!.query(
+      "INSERT INTO account_deletion_request (id, user_id) VALUES ($1, $2)",
+      [randomUUID(), actor],
+    );
+    await expect(createCardCheckout(actor)).rejects.toMatchObject({ code: "BILLING_DELETION_PENDING" });
+    expect(isolated.checkout).not.toHaveBeenCalled();
   });
 
   afterAll(async () => {

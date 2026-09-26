@@ -53,6 +53,9 @@ export default function Help() {
         publicados antes do lançamento pago. Nesta prévia, não há promessa de
         atendimento imediato.
       </p>
+      <h2>Guias rápidos</h2>
+      <p>Para CSV, entre em Produtos, importe o arquivo, confira a prévia e confirme; a importação exige PRO. A exportação do catálogo e dos dados da conta funciona também no Free.</p>
+      <p>Para acessar a conta, confirme o e-mail e use a recuperação de senha quando necessário. Para cancelar a renovação do cartão, entre em Plano; Pix não renova automaticamente.</p>
       <h2>Um resultado mudou?</h2>
       <p>
         Ao alterar qualquer entrada, o resultado anterior deixa de ser exibido

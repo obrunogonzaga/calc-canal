@@ -45,6 +45,12 @@ export default defineConfig({
         "src/lib/server/subscription-lifecycle.ts",
         "src/lib/server/billing-reconciliation.ts",
         "src/lib/server/subscription-payment-webhook.ts",
+        "src/lib/server/account-data.ts",
+        "src/components/account/AccountDataClient.tsx",
+        "src/components/account/SupportClient.tsx",
+        "src/app/api/conta/dados/route.ts",
+        "src/app/api/conta/exclusao/route.ts",
+        "src/app/api/conta/suporte/route.ts",
       ],
       reporter: ["text", "json", "html"],
       thresholds: {

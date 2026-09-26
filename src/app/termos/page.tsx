@@ -36,11 +36,12 @@ export default function Terms() {
         </p>
         <h2>Ajuda e encerramento</h2>
         <p>
-          Para suporte, cópia ou exclusão dos dados de teste, escreva para{" "}
-          <a href={supportUrl}>bruno@aifbr.com.br</a>. O piloto pode ser
-          interrompido antes de uma oferta comercial. Condições finais de
-          assinatura, cancelamento, reembolso e documento fiscal serão
-          publicadas antes de qualquer venda.
+          Para suporte, escreva para{" "}<a href={supportUrl}>bruno@aifbr.com.br</a>.
+          Atendimento de segunda a sexta, 9h às 17h (Brasília), com resposta
+          em até 24 horas úteis. A cópia dos dados e o pedido de exclusão ficam
+          em Configurações. O piloto pode ser interrompido antes de uma oferta
+          comercial. As condições finais de reembolso, retenção e documento
+          fiscal serão revisadas e publicadas antes de qualquer venda.
         </p>
       </InfoPage>
     );

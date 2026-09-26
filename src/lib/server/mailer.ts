@@ -192,6 +192,21 @@ export async function sendSubscriptionCancellationEmail(
   );
 }
 
+export async function sendSupportRequestEmail(input: {
+  protocol: string;
+  fromEmail: string;
+  category: string;
+  message: string;
+}): Promise<void> {
+  const destination = process.env.SUPPORT_EMAIL?.trim() || "bruno@aifbr.com.br";
+  await sendAuthEmail(
+    `Suporte Líquido ${input.protocol}`,
+    `Protocolo: ${input.protocol}\nConta: ${input.fromEmail}\nAssunto: ${input.category}\n\n${input.message}`,
+    `<p>Protocolo: ${escapeHtml(input.protocol)}</p><p>Conta: ${escapeHtml(input.fromEmail)}</p><p>Assunto: ${escapeHtml(input.category)}</p><p>${escapeHtml(input.message).replace(/\n/g, "<br>")}</p>`,
+    destination,
+  );
+}
+
 export function resetMailerForTests(): void {
   transporter = undefined;
 }

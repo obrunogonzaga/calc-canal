@@ -1397,6 +1397,51 @@ dd {
 .account-settings dd {
   overflow-wrap: anywhere;
 }
+.account-data-section,
+.account-support-form {
+  border-top: 1px solid var(--line);
+  margin-top: 32px;
+  padding-top: 24px;
+}
+.account-data-section p,
+.account-support-form p {
+  max-width: 64ch;
+  margin: 12px 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.account-data-section h3 {
+  margin-top: 32px;
+}
+.account-data-section label,
+.account-support-form label {
+  display: block;
+  margin: 18px 0 7px;
+  font-weight: 600;
+}
+.account-data-section input,
+.account-support-form select,
+.account-support-form textarea {
+  display: block;
+  width: min(100%, 560px);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: white;
+  color: var(--ink);
+  padding: 11px 12px;
+}
+.account-support-form textarea {
+  min-height: 140px;
+  resize: vertical;
+}
+.account-data-section .button,
+.account-support-form .button {
+  margin-top: 14px;
+}
+.account-data-section code,
+.account-support-form code {
+  overflow-wrap: anywhere;
+}
 .save-account-button {
   width: 100%;
   margin-top: 12px;
