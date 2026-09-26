@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { BillingClient } from "./BillingClient";
 
@@ -14,6 +14,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -55,6 +56,25 @@ describe("BillingClient", () => {
     expect(await screen.findByText(/Retorno do checkout recebido/)).toBeInTheDocument();
     expect(screen.getByText(/Você está na prévia gratuita/)).toBeInTheDocument();
     expect(screen.queryByText(/Seu catálogo PRO está disponível/)).not.toBeInTheDocument();
+  });
+
+  it("refreshStatus_openOrderBecomesPaid_showsProAfterPolling", async () => {
+    vi.useFakeTimers();
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(response({
+        plan: "free", checkoutEnabled: true,
+        order: { id: "order-1", method: "card", status: "checkout_created" },
+      }))
+      .mockResolvedValueOnce(response({
+        plan: "pro", checkoutEnabled: true,
+        order: { id: "order-1", method: "card", status: "paid" },
+      }));
+    render(<BillingClient />);
+    await act(async () => { await Promise.resolve(); });
+    expect(screen.getByText("Você está na prévia gratuita.")).toBeInTheDocument();
+    await act(async () => { await vi.advanceTimersByTimeAsync(15_000); });
+    expect(screen.getByText("Seu catálogo PRO está disponível.")).toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledTimes(2);
   });
 
   it("startCardCheckout_preparingOrder_doesNotTreatItAsPaid", async () => {

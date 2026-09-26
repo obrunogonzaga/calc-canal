@@ -49,6 +49,7 @@ import {
   saoPauloToday,
   verifyAsaasWebhookToken,
 } from "./billing";
+import { listProducts } from "./products";
 
 import { POST as webhookPost } from "@/app/api/billing/webhook/route";
 
@@ -474,6 +475,34 @@ suite("billing integration", () => {
       recurringRenewal: "not_configured",
     });
     expect(status.paidUntil).toBeTruthy();
+  });
+
+  it("processAsaasCheckoutWebhook_paidCard_preservesSavedCatalog", async () => {
+    const actor = await createActor("billing-catalog");
+    const productId = randomUUID();
+    await isolated.pool!.query(`
+      INSERT INTO catalog_product (
+        id, user_id, sku, name, product_cost, packaging, seller_shipping,
+        tax_percent, commission_percent, fixed_fee, desired_margin_percent,
+        channel_id, tariff_mode, evaluated_draft, evaluated_result, rule_version
+      ) VALUES ($1, $2, 'QA-SKU', 'Produto salvo', 10, 0, 0, 0, 10, 0, 20,
+        'shopee', 'manual', '{}'::jsonb, '{}'::jsonb, 'qa-rule')
+    `, [productId, actor]);
+    const before = await listProducts(actor);
+    const checkout = await createCardCheckout(actor);
+    const stored = await orderRow(checkout.order.id);
+
+    const paid = await processAsaasCheckoutWebhook(checkoutPayload(
+      { id: checkout.order.id, checkoutId: stored!.checkout_id! },
+      { eventId: eventId("evt-catalog-paid") },
+    ));
+    const after = await listProducts(actor);
+
+    expect(paid).toMatchObject({ granted: true, outcome: "paid" });
+    expect(before.entitlement).toMatchObject({ plan: "free", count: 1 });
+    expect(after.entitlement).toMatchObject({ plan: "pro", count: 1 });
+    expect(after.products).toMatchObject(before.products);
+    expect(after.products[0]).toMatchObject({ id: productId, sku: "QA-SKU", editable: true });
   });
 
   it("createCheckout_expiredProWithUncancelledCard_blocksSecondRecurringCharge", async () => {

@@ -7,6 +7,8 @@ import { useEffect, useState } from "react";
 type Mode = "signup" | "signin" | "forgot" | "reset";
 const genericError =
   "Não foi possível concluir. Confira os dados e tente novamente.";
+const localTestEmailMessage =
+  "Neste ambiente local, use um e-mail fictício @precopronto.test.";
 const errorMessages: Record<string, string> = {
   INVALID_EMAIL_OR_PASSWORD:
     "E-mail ou senha inválidos. Confira os dados ou recupere sua senha.",
@@ -43,6 +45,11 @@ async function authRequest(endpoint: string, body: Record<string, unknown>) {
   return data;
 }
 
+function requiresLocalTestEmail(email: string): boolean {
+  const localHost = ["localhost", "127.0.0.1", "[::1]"].includes(window.location.hostname);
+  return localHost && !/^[^@\s]+@precopronto\.test$/i.test(email.trim());
+}
+
 export function AuthForm({ mode }: { mode: Mode }) {
   const router = useRouter();
   const [ready, setReady] = useState(false);
@@ -66,6 +73,10 @@ export function AuthForm({ mode }: { mode: Mode }) {
     setNotice(null);
     if (!email.trim()) {
       setError("Informe seu e-mail para pedir outro link.");
+      return;
+    }
+    if (requiresLocalTestEmail(email)) {
+      setError(localTestEmailMessage);
       return;
     }
     setBusy(true);
@@ -95,6 +106,10 @@ export function AuthForm({ mode }: { mode: Mode }) {
     }
     if ((mode === "signup" || mode === "reset") && password !== confirmation) {
       setError("As senhas não coincidem.");
+      return;
+    }
+    if ((mode === "signup" || mode === "forgot") && requiresLocalTestEmail(email)) {
+      setError(localTestEmailMessage);
       return;
     }
     setBusy(true);
