@@ -47,6 +47,9 @@ docker compose --project-directory "$pilot_dir" \
 
 mv -- "$temp_file" "$dump_file"
 temp_file=
+if [ -n "${LIQUIDO_BACKUP_RESULT_FILE:-}" ]; then
+  printf '%s\n' "$dump_file" > "$LIQUIDO_BACKUP_RESULT_FILE"
+fi
 completed_at=$(date -u +%s)
 echo "Pilot database backup saved: $dump_file"
 echo "Backup duration: $((completed_at - started_at)) seconds; completed at $(date -u '+%Y-%m-%dT%H:%M:%SZ')."

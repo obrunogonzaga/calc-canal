@@ -10,27 +10,35 @@ O relatório financeiro é montado no servidor a partir de `billing_payment_cycl
 
 ## Consulta autorizada
 
-Provisionar `OPERATIONS_DATABASE_URL` fora do Git para um papel PostgreSQL **somente leitura**, com acesso mínimo à view `operational_funnel_event`, às tabelas de cobrança, falhas e auditoria, e apenas às colunas `id`/`emailVerified` de `user` e `plan`/`expires_at` de `account_entitlement`. O comando exige essa credencial e abre uma transação `READ ONLY`; não há endpoint administrativo público. A posse da credencial define o operador autorizado; manter a concessão/revogação e o acesso ao host no gerenciador operacional.
+Provisionar o papel PostgreSQL `liquido_ops_readonly` **somente leitura**, com acesso mínimo à view `operational_funnel_event`, às tabelas de cobrança, falhas e auditoria, e apenas às colunas `id`/`emailVerified` de `user` e `user_id`/`plan`/`expires_at` de `account_entitlement`. O comando exige essa credencial e abre uma transação `READ ONLY`; não há endpoint administrativo público. A posse da credencial define o operador autorizado; manter a concessão/revogação e o acesso ao host no gerenciador operacional.
 
-Após criar o papel com credencial no gerenciador de segredos, conceder somente:
+Criar o papel com `CREATE ROLE liquido_ops_readonly LOGIN NOINHERIT;`, definir a senha interativamente com `\password liquido_ops_readonly` no `psql` e guardar uma cópia em `deploy/pilot/secrets/ops_postgres_password` **apenas no VPS**, fora do Git. O arquivo deve seguir as permissões de bind mount descritas em `deploy/pilot/backup/README.md`. Após provisionar a credencial, conceder somente:
 
 ```sql
-GRANT CONNECT ON DATABASE banco_do_piloto TO papel_operacoes;
-GRANT USAGE ON SCHEMA public TO papel_operacoes;
+GRANT CONNECT ON DATABASE liquido TO liquido_ops_readonly;
+GRANT USAGE ON SCHEMA public TO liquido_ops_readonly;
 GRANT SELECT ON operational_funnel_event, billing_payment_cycle, billing_order,
-  billing_payment_event, access_change_audit, operational_failure_event,
-  account_entitlement TO papel_operacoes;
-GRANT SELECT (id, "emailVerified") ON "user" TO papel_operacoes;
+  billing_payment_event, access_change_audit, operational_failure_event
+  TO liquido_ops_readonly;
+GRANT SELECT (id, "emailVerified") ON "user" TO liquido_ops_readonly;
+GRANT SELECT (user_id, plan, expires_at) ON account_entitlement TO liquido_ops_readonly;
 ```
 
 Não conceder `INSERT`, `UPDATE` ou `DELETE`; conferir que o papel não possui permissões herdadas mais amplas.
 
+No VPS, com os três overlays do piloto e o SHA revisado em `.env`, executar na pasta `deploy/pilot`:
+
 ```sh
+export COMPOSE_FILE=compose.yaml:compose.database.yaml:compose.accounts.yaml
+docker compose --profile ops config --quiet
+docker compose --profile ops build ops
 TZ=America/Sao_Paulo date +%F
-npm run ops:report -- --since=AAAA-MM-DD
-npm run ops:report -- --since=AAAA-MM-DD --account-id=ID_INTERNO
-npm run ops:report -- --since=AAAA-MM-DD --check
+docker compose run --rm ops --since=AAAA-MM-DD
+docker compose run --rm ops --since=AAAA-MM-DD --account-id=ID_INTERNO
+docker compose run --rm ops --since=AAAA-MM-DD --check
 ```
+
+`ops` é um contêiner de execução única. A imagem usa o target `build`, que contém `tsx` e o script do relatório. Ele recebe somente o segredo `pilot_ops_db_password`, monta a URL de leitura em memória e se conecta apenas à rede interna `database`; não recebe a senha principal do banco, os segredos de conta nem acesso ao proxy. A view exige a migração `0010_operations.sql`. O comando `run` exige a data inicial e preserva o código de saída do relatório. `APP_ENV=production` identifica a implantação do piloto; `ASAAS_ENV=unknown` na saída não confirma ambiente de cobrança. Não imprimir `docker compose config` completo nem o conteúdo do segredo.
 
 `--check` retorna código 2 quando encontra falha de checkout, exceção de pagamento, mudança de acesso sem atribuição, falha de e-mail/webhook ou erro de cálculo no período. Código 1 indica falha da própria consulta. Agendar esse comando e enviar saída/código ao canal e responsável **a definir**; ainda não há entrega de alerta comprovada. Exigir monitoramento externo para indisponibilidade do banco, pois a gravação de falhas também pode falhar nesse caso. Não copiar a saída por conta para issues públicas.
 
@@ -56,6 +64,8 @@ Em 25/09/2026, a documentação oficial [Custos por vender](https://developers.m
 Toda semana: conferir a fonte oficial e amostras autenticadas das categorias/logísticas reais; registrar data, fonte, escopo, resultado e responsável. Se a regra mudar, publicar nova versão com vigência, testes de fronteira e migração de cálculos futuros. Preservar `rule_version` e avaliações históricas, sem reescrever resultados antigos. Se não for possível conferir, manter modo manual e preset vencido bloqueado. Tarifas do gateway e custo efetivo de Pix dependem da conta/contrato e do primeiro extrato real; não entram no custo de produto nem neste preset.
 
 ## Pendências de decisão e operação
+
+**Escolhas para o piloto restrito:** R2 já existente em `hostinger-backups/daily/liquido-pilot/`; 14 dias de cópia externa conforme a regra `daily/` documentada, a confirmar no bucket; Healthchecks.io com e-mail para `bruno@aifbr.com.br`; meta RPO de 24 horas e RTO de 8 horas. São **metas**, não resultados medidos nem garantias. Se o ensaio integral excedê-las, corrigir o processo ou rever a meta explicitamente. Manter cópias locais existentes até que a cópia externa, a restauração e a política de retenção sejam comprovadas. A matriz legal de retenção permanece na #40.
 
 - [ ] Definir metas RPO/RTO, cenário de falha e responsável pela medição.
 - [ ] Definir destino externo, retenção, agenda e monitoramento do backup.

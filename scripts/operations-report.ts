@@ -3,22 +3,31 @@ import { Pool } from "pg";
 
 config({ path: ".env.local", quiet: true });
 
-function argumentsForReport(args: string[]): { since: string; accountId?: string; check: boolean } {
+export function argumentsForReport(args: string[]): { since: string; accountId?: string; check: boolean } {
   const values = new Map<string, string>();
   for (const arg of args) {
     if (arg === "--check" && !values.has("check")) {
       values.set("check", "true");
       continue;
     }
-    const match = /^--(since|account-id)=(.+)$/.exec(arg);
+    const match = /^--(since|account-id|lookback-minutes)=(.+)$/.exec(arg);
     if (!match || values.has(match[1])) throw new Error("Argumentos inválidos.");
     values.set(match[1], match[2]);
   }
-  const since = values.get("since");
-  if (!since || !/^\d{4}-\d{2}-\d{2}$/.test(since) ||
+  const lookback = values.get("lookback-minutes");
+  if (Boolean(lookback) === Boolean(values.get("since"))) {
+    throw new Error("Use --since=AAAA-MM-DD ou --lookback-minutes=1..1440.");
+  }
+  if (lookback && (!/^\d+$/.test(lookback) || Number(lookback) < 1 || Number(lookback) > 1440)) {
+    throw new Error("Janela de consulta inválida.");
+  }
+  const since = lookback
+    ? new Date(Date.now() - Number(lookback) * 60_000).toISOString()
+    : values.get("since")!;
+  if (!lookback && (!/^\d{4}-\d{2}-\d{2}$/.test(since) ||
     Number.isNaN(Date.parse(`${since}T00:00:00Z`)) ||
-    new Date(`${since}T00:00:00Z`).toISOString().slice(0, 10) !== since) {
-    throw new Error("Use --since=AAAA-MM-DD.");
+    new Date(`${since}T00:00:00Z`).toISOString().slice(0, 10) !== since)) {
+    throw new Error("Data inicial inválida.");
   }
   const accountId = values.get("account-id");
   if (accountId && !/^[a-zA-Z0-9_-]{1,128}$/.test(accountId)) {
@@ -35,7 +44,7 @@ export async function report(pool: Pool, since: string, accountId?: string) {
     const events = await client.query(`
       SELECT event_type, count(*)::INT AS count
       FROM operational_funnel_event
-      WHERE occurred_at >= $1::DATE AND ($2::TEXT IS NULL OR user_id = $2)
+      WHERE occurred_at >= $1::TIMESTAMPTZ AND ($2::TEXT IS NULL OR user_id = $2)
       GROUP BY event_type ORDER BY event_type
     `, [since, accountId ?? null]);
     const financial = await client.query(`
@@ -58,23 +67,23 @@ export async function report(pool: Pool, since: string, accountId?: string) {
         COALESCE(sum(amount_cents) FILTER (WHERE received), 0)::BIGINT AS provider_received_cents,
         COALESCE(sum(amount_cents) FILTER (WHERE state IN ('refunded', 'chargeback')), 0)::BIGINT AS reversed_cents,
         COALESCE(sum(amount_cents) FILTER (WHERE state = 'confirmed'), 0)::BIGINT AS currently_confirmed_cents
-      FROM cycles WHERE first_confirmed_at >= $1::DATE
+      FROM cycles WHERE first_confirmed_at >= $1::TIMESTAMPTZ
       GROUP BY stream ORDER BY stream
     `, [since, accountId ?? null]);
     const failures = await client.query(`
       SELECT 'checkout_failed' AS kind, count(*)::INT AS count FROM billing_order
-        WHERE status = 'failed' AND updated_at >= $1::DATE
+        WHERE status = 'failed' AND updated_at >= $1::TIMESTAMPTZ
           AND ($2::TEXT IS NULL OR user_id = $2)
       UNION ALL SELECT 'payment_exception', count(*)::INT FROM billing_payment_event e
         LEFT JOIN billing_payment_cycle c ON c.payment_id = e.payment_id
-        WHERE e.received_at >= $1::DATE
+        WHERE e.received_at >= $1::TIMESTAMPTZ
           AND e.outcome IN ('rejected_correlation', 'paid_without_entitlement', 'overdue')
           AND ($2::TEXT IS NULL OR c.user_id = $2)
       UNION ALL SELECT 'unattributed_access_change', count(*)::INT FROM access_change_audit
-        WHERE changed_at >= $1::DATE AND actor = 'unattributed'
+        WHERE changed_at >= $1::TIMESTAMPTZ AND actor = 'unattributed'
           AND ($2::TEXT IS NULL OR user_id = $2)
       UNION ALL SELECT kind, count(*)::INT FROM operational_failure_event
-        WHERE created_at >= $1::DATE AND $2::TEXT IS NULL GROUP BY kind
+        WHERE created_at >= $1::TIMESTAMPTZ AND $2::TEXT IS NULL GROUP BY kind
     `, [since, accountId ?? null]);
     const account = accountId ? await client.query(`
       SELECT u.id, u."emailVerified" AS verified, a.plan, a.expires_at,
