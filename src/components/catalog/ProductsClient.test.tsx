@@ -30,6 +30,32 @@ afterEach(() => {
 });
 
 describe("ProductsClient", () => {
+  it("selectVisibleProProducts_togglesActiveBatch", async () => {
+    const product = (id: string, archivedAt?: string) => ({
+      id,
+      sku: id,
+      name: `Produto ${id}`,
+      channelId: "shopee",
+      draft: { input: { productCost: 10 } },
+      result: { suggestedPrice: 20, netProfit: 4 },
+      archivedAt,
+      editable: true,
+    });
+    vi.mocked(fetch).mockResolvedValue(response({
+      products: [product("A"), product("B"), product("C", "2026-09-25")],
+      entitlement: { ...emptyCatalog.entitlement, plan: "pro", limit: 500, count: 2, archivedCount: 1 },
+    }));
+    const user = userEvent.setup();
+    render(<ProductsClient />);
+
+    await user.click(await screen.findByRole("button", { name: "Selecionar 2 ativos exibidos" }));
+    expect(screen.getByText("PRO · 2 selecionado(s)")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /Selecionar Produto A para operação em lote/ })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /Selecionar Produto B para operação em lote/ })).toBeChecked();
+    await user.click(screen.getByRole("button", { name: "Desmarcar ativos exibidos" }));
+    expect(screen.queryByRole("region", { name: "Recálculo em lote" })).not.toBeInTheDocument();
+  });
+
   it("loadProducts_initialFailure_allowsRetryWithoutFalseEmptyState", async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(response({ error: "Consulta temporariamente indisponível." }, 500))

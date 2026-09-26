@@ -63,6 +63,14 @@ async function post(path: string, body: unknown) {
   return data;
 }
 
+function formatImportErrors(entries: ImportResult["errors"]): string {
+  return entries.flatMap((entry) =>
+    entry.errors.map((message) =>
+      message.startsWith("Linha ") ? message : `Linha ${entry.line}: ${message}`,
+    ),
+  ).join(" ");
+}
+
 export function ImportCsv({
   plan,
   onImported,
@@ -276,13 +284,14 @@ export function ImportCsv({
               {error && <p role="alert" className="error-banner">{error}</p>}
               {preview && (
                 <div className="catalog-import-preview">
-                  <h3>Revise as {preview.rows.length} linhas</h3>
+                  <h3>Revise {preview.rows.length} {preview.rows.length === 1 ? "linha" : "linhas"}</h3>
                   <p>
                     {preview.validCount} pronta(s), {preview.invalidCount} com
                     erro. A prévia expira em{" "}
                     {new Date(preview.expiresAt).toLocaleTimeString("pt-BR")}.
                   </p>
-                  <div className="catalog-import-table-wrap">
+                  <p className="field-hint">Deslize ou use as setas na tabela para ver todas as colunas.</p>
+                  <div className="catalog-import-table-wrap" role="region" aria-label="Linhas da importação" tabIndex={0}>
                     <table>
                       <thead>
                         <tr><th>Linha</th><th>SKU / produto</th><th>Custo</th><th>Ação</th><th>Preço sugerido</th><th>Problema</th></tr>
@@ -329,10 +338,10 @@ export function ImportCsv({
               )}
               {result && (
                 <p role="status" className="success-banner">
-                  {result.created} criado(s), {result.updated} atualizado(s),
+                  {result.created} criado(s), {result.updated} atualizado(s),{" "}
                   {result.skipped} ignorado(s).
                   {result.errors.length > 0 &&
-                    ` ${result.errors.map((entry) => `Linha ${entry.line}: ${entry.errors.join("; ")}`).join(" ")}`}
+                    ` ${formatImportErrors(result.errors)}`}
                 </p>
               )}
             </div>

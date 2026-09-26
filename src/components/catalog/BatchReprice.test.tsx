@@ -33,8 +33,8 @@ describe("BatchReprice", () => {
             invalidCount: 1,
             expiresAt: new Date(Date.now() + 60000).toISOString(),
             rows: [
-              { id: "id-1", sku: "A", name: "Produto A", oldCost: 10, newCost: 11, oldPrice: 20, newPrice: 22, oldProfit: 4, newProfit: 4.4, belowTarget: false, errors: [] },
-              { id: "id-2", sku: "B", name: "Produto B", oldCost: 10, newCost: 10, oldPrice: 20, newPrice: 20, oldProfit: 4, newProfit: 4, belowTarget: false, errors: ["Regra incompatível"] },
+              { id: "id-1", sku: "A", name: "Produto A", oldCost: 10, currentPrice: 19, newCost: 11, oldPrice: 20, newPrice: 22, oldProfit: 4, newProfit: 4.4, belowTarget: false, errors: [] },
+              { id: "id-2", sku: "B", name: "Produto B", oldCost: 10, currentPrice: null, newCost: 10, oldPrice: 20, newPrice: 20, oldProfit: 4, newProfit: 4, belowTarget: false, errors: ["Regra incompatível"] },
             ],
           })
         : response({ updated: 1, skipped: 1, errors: [{ id: "id-2", errors: ["Regra incompatível"] }] }),
@@ -45,7 +45,8 @@ describe("BatchReprice", () => {
     await user.click(screen.getByRole("button", { name: "Comparar antes e depois" }));
     const confirm = await screen.findByRole("button", { name: "Confirmar 1 produto(s)" });
     expect(confirm).toBeDisabled();
-    expect(screen.getByText("Regra incompatível")).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: /Regra incompatível/ })).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: /19,00/ })).toBeInTheDocument();
     await user.click(screen.getByRole("checkbox", { name: /Salvar só os produtos válidos/ }));
     await user.click(confirm);
     expect(await screen.findByText(/1 atualizado\(s\), 1 ignorado\(s\)/)).toBeInTheDocument();

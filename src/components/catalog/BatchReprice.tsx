@@ -19,6 +19,7 @@ type PreviewRow = {
   sku: string;
   name: string;
   oldCost: number | null;
+  currentPrice: number | null;
   newCost: number | null;
   oldPrice: number | null;
   newPrice: number | null;
@@ -212,7 +213,8 @@ export function BatchReprice({
         <div className="catalog-batch-preview">
           <h3>Revise o resultado</h3>
           <p>{preview.validCount} pronto(s), {preview.invalidCount} com erro. A situação da margem considera o preço publicado, quando informado. Ele não muda automaticamente.</p>
-          <div className="catalog-import-table-wrap">
+          <p className="field-hint">Deslize ou use as setas na tabela para ver todas as colunas.</p>
+          <div className="catalog-import-table-wrap" role="region" aria-label="Resultados do recálculo" tabIndex={0}>
             <table>
               <thead>
                 <tr><th>Produto</th><th>Custo antes → depois</th><th>Sugerido antes → depois</th><th>Contribuição antes → depois</th><th>Preço publicado</th></tr>
@@ -224,7 +226,7 @@ export function BatchReprice({
                     <td>{displayMoney(row.oldCost)} → {displayMoney(row.newCost)}</td>
                     <td>{displayMoney(row.oldPrice)} → {displayMoney(row.newPrice)}</td>
                     <td>{displayMoney(row.oldProfit)} → {displayMoney(row.newProfit)}</td>
-                    <td>{row.errors.length ? row.errors.join("; ") : row.belowTarget ? "Abaixo da margem alvo" : "Sem alerta de margem"}</td>
+                    <td>{displayMoney(row.currentPrice)}<br />{row.errors.length ? row.errors.join("; ") : row.belowTarget ? "Abaixo da margem alvo" : "Sem alerta de margem"}</td>
                   </tr>
                 ))}
               </tbody>

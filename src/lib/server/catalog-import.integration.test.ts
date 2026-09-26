@@ -212,6 +212,18 @@ suite("catalog import integration", () => {
     ).rejects.toMatchObject({ code: "INVALID_PRODUCT" });
   });
 
+  it.each([
+    ["produto;preço\nItem;10", "Cabeçalho obrigatório"],
+    ['SKU;PRODUTO;CUSTO\nA;"Sem fechamento;10', "Aspas sem fechamento"],
+    ["a".repeat(2_000_001), "2 MB"],
+  ])("createCatalogImportPreview_invalidCsv_returnsCorrectableError", async (csv, message) => {
+    const actor = await createActor("import-invalid");
+    await expect(createCatalogImportPreview(actor, importRequest(csv))).rejects.toMatchObject({
+      code: "INVALID_PRODUCT",
+      message: expect.stringContaining(message),
+    });
+  });
+
   it("createCatalogImportPreview_duplicateExisting_requiresExplicitUpdate", async () => {
     const actor = await createActor("import-duplicate");
     await createProduct(actor, productInput("SKU-EXISTENTE"));
