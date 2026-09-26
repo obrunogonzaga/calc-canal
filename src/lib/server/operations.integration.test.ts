@@ -55,7 +55,8 @@ suite("operations", () => {
     const own = await report(pool, since, owner);
     const foreign = await report(pool, since, other);
     expect(own.financial).toEqual([expect.objectContaining({
-      stream: "pix_manual", gross_cycles: 1, gross_confirmed_cents: "2990", received_cycles: 1,
+      stream: "pix_manual", gross_cycles: 1, gross_confirmed_cents: "2990",
+      received_cycles: 1, provider_received_cents: "2990",
     })]);
     expect(foreign.financial).toEqual([]);
     expect(foreign.account).toMatchObject({ id: other, confirmed_cycles: 0 });

@@ -55,6 +55,7 @@ export async function report(pool: Pool, since: string, accountId?: string) {
         count(*)::INT AS gross_cycles,
         sum(amount_cents)::BIGINT AS gross_confirmed_cents,
         count(*) FILTER (WHERE received)::INT AS received_cycles,
+        COALESCE(sum(amount_cents) FILTER (WHERE received), 0)::BIGINT AS provider_received_cents,
         COALESCE(sum(amount_cents) FILTER (WHERE state IN ('refunded', 'chargeback')), 0)::BIGINT AS reversed_cents,
         COALESCE(sum(amount_cents) FILTER (WHERE state = 'confirmed'), 0)::BIGINT AS currently_confirmed_cents
       FROM cycles WHERE first_confirmed_at >= $1::DATE
