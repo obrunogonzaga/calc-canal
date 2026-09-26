@@ -59,7 +59,8 @@ stage_file="$stage_dir/$(basename -- "$dump_file")"
 ln -- "$dump_file" "$stage_file"
 prefix="daily/liquido-pilot/$(basename -- "$dump_file" .dump)"
 hostinger-backup-upload "$stage_dir" "$prefix"
-rclone check --download --one-way "$stage_dir" "$remote_base/$(basename -- "$dump_file" .dump)"
+rclone check --download --one-way --retries 5 --low-level-retries 20 \
+  "$stage_dir" "$remote_base/$(basename -- "$dump_file" .dump)"
 if [ "$monitoring_ready" != true ]; then
   echo "Off-host copy passed but monitoring is unavailable." >&2
   exit 1
