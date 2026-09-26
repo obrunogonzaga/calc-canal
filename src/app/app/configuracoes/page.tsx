@@ -2,6 +2,7 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireVerifiedSession } from "@/lib/server/auth";
+import { AccountDataClient } from "@/components/account/AccountDataClient";
 export default async function Settings() {
   const session = await requireVerifiedSession(await headers());
   if (!session) redirect("/entrar");
@@ -27,12 +28,13 @@ export default async function Settings() {
         Trocar senha por e-mail
       </Link>
       <p className="field-hint">
-        Para solicitações sobre dados da conta, consulte a ajuda. Não envie
-        senhas ou tokens em solicitações públicas.
+        Você pode exportar os dados ou solicitar a exclusão abaixo. Para falar
+        com o suporte, use a Ajuda. Não envie senhas ou tokens.
       </p>
       <Link className="text-link" href="/app/ajuda">
         Ajuda e privacidade
       </Link>
+      <AccountDataClient />
     </>
   );
 }

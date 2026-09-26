@@ -11,6 +11,7 @@ const CHECKOUT_EXPIRATION_MINUTES = 60;
 
 type BillingErrorCode =
   | "BILLING_ALREADY_PRO"
+  | "BILLING_DELETION_PENDING"
   | "BILLING_CHECKOUT_DISABLED"
   | "BILLING_CHECKOUT_FAILED"
   | "BILLING_CONFIGURATION_ERROR"
@@ -378,6 +379,13 @@ async function createPendingOrder(userId: string, method: "card" | "pix"): Promi
 }> {
   return withTransaction(async (client) => {
     await lockUser(client, userId);
+    const deletion = await client.query(
+      "SELECT id FROM account_deletion_request WHERE user_id = $1 AND status = 'pending_review'",
+      [userId],
+    );
+    if (deletion.rows[0]) {
+      return billingError("BILLING_DELETION_PENDING", "Há uma solicitação de exclusão em análise. Não é possível iniciar uma nova compra.");
+    }
     const paidUntil = await getActiveEntitlement(client, userId);
 
     if (isActivePro(paidUntil)) {

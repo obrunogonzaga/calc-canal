@@ -38,10 +38,13 @@ export default function Privacy() {
         </p>
         <h2>Acesso e exclusão</h2>
         <p>
-          Peça acesso, cópia ou exclusão dos dados de teste pelo contato acima.
-          A exclusão exige conferir a identidade e tratar as cópias de
-          segurança. Os prazos finais de retenção e exclusão serão definidos
-          antes de convidar outras pessoas ou abrir a venda.
+          A conta autenticada pode baixar uma cópia em JSON de seus dados nas
+          Configurações, inclusive no Free. O pedido de exclusão exige confirmação
+          e gera protocolo. Antes do pedido, a renovação do cartão precisa estar
+          confirmadamente cancelada e não pode haver checkout aberto. O pedido
+          fica em análise; não apaga dados imediatamente. Prazos de retenção,
+          eliminação e tratamento das cópias de segurança ainda dependem de
+          definição fiscal e jurídica antes da abertura comercial.
         </p>
       </InfoPage>
     );
