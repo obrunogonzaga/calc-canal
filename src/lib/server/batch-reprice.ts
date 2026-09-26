@@ -50,6 +50,7 @@ export interface BatchRepricePreviewRow {
   sku: string;
   name: string;
   oldCost: number | null;
+  currentPrice: number | null;
   newCost: number | null;
   oldPrice: number | null;
   newPrice: number | null;
@@ -272,6 +273,7 @@ function rowFromMissingProduct(id: string): StoredBatchRow {
     sku: "",
     name: "",
     oldCost: null,
+    currentPrice: null,
     newCost: null,
     oldPrice: null,
     newPrice: null,
@@ -296,6 +298,11 @@ function applyChanges(
       : (changes.confirmedDropOff ?? oldDraft.confirmedDropOff);
 
   if (tariffMode === "ml_drop_off") {
+    if (changes.fixedFee !== undefined) {
+      throw new ProductValidationError(
+        "Para alterar a taxa fixa, selecione a regra manual neste produto.",
+      );
+    }
     if (oldDraft.channelId !== "mercado_livre") {
       throw new ProductValidationError(
         "ME2 Drop Off só pode ser aplicado a produtos do Mercado Livre.",
@@ -351,6 +358,8 @@ function applyChanges(
     sku: product.sku,
     name: product.name,
     oldCost: oldInput.productCost,
+    currentPrice:
+      product.current_price === null ? null : Number(product.current_price),
     newCost: write.draft.input.productCost,
     oldPrice: oldResult.suggestedPrice,
     newPrice: evaluation.result.suggestedPrice,
@@ -571,6 +580,7 @@ function toPublicRow(row: StoredBatchRow): BatchRepricePreviewRow {
     sku: row.sku,
     name: row.name,
     oldCost: row.oldCost,
+    currentPrice: row.currentPrice,
     newCost: row.newCost,
     oldPrice: row.oldPrice,
     newPrice: row.newPrice,
@@ -613,6 +623,8 @@ export async function createBatchRepricePreview(
           sku: product.sku,
           name: product.name,
           oldCost: null,
+          currentPrice:
+            product.current_price === null ? null : Number(product.current_price),
           newCost: null,
           oldPrice: null,
           newPrice: null,
@@ -632,6 +644,8 @@ export async function createBatchRepricePreview(
           sku: product.sku,
           name: product.name,
           oldCost: null,
+          currentPrice:
+            product.current_price === null ? null : Number(product.current_price),
           newCost: null,
           oldPrice: null,
           newPrice: null,

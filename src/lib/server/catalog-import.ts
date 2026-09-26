@@ -586,7 +586,13 @@ export async function createCatalogImportPreview(
 
   try {
     await assertProEntitlement(client, userId);
-    const parsed = parseCatalogCsv(request.csv);
+    let parsed;
+    try {
+      parsed = parseCatalogCsv(request.csv);
+    } catch (error) {
+      if (error instanceof Error) throw new ProductValidationError(error.message);
+      throw error;
+    }
 
     if (parsed.rows.length === 0) {
       throw new ProductValidationError("Inclua ao menos uma linha de produto no CSV.");

@@ -388,6 +388,13 @@ export function ProductsClient() {
     );
   }
   const items = data?.products ?? [];
+  const visibleActiveIds =
+    data?.entitlement.plan === "pro"
+      ? items.filter((product) => !product.archivedAt).map((product) => product.id)
+      : [];
+  const allVisibleSelected =
+    visibleActiveIds.length > 0 &&
+    visibleActiveIds.every((id) => selected.includes(id));
   return (
     <div className="catalog-app">
       <div className="account-title">
@@ -440,6 +447,22 @@ export function ProductsClient() {
         >
           Exportar catálogo
         </button>
+        {visibleActiveIds.length > 0 && (
+          <button
+            type="button"
+            className="button secondary"
+            disabled={busy || loading}
+            onClick={() =>
+              setSelected((current) =>
+                allVisibleSelected
+                  ? current.filter((id) => !visibleActiveIds.includes(id))
+                  : [...new Set([...current, ...visibleActiveIds])],
+              )
+            }
+          >
+            {allVisibleSelected ? "Desmarcar ativos exibidos" : `Selecionar ${visibleActiveIds.length} ativos exibidos`}
+          </button>
+        )}
       </div>
       {data && (
         <p className="catalog-count" role="status">

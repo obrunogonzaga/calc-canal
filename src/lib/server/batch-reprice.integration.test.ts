@@ -143,6 +143,20 @@ async function insertFixtures(userId: string, count: number): Promise<string[]> 
     [userId, JSON.stringify(draft), JSON.stringify(result), ids],
   );
 
+  await isolated.pool!.query(
+    `
+      INSERT INTO catalog_product_evaluation (
+        id, product_id, product_version, evaluated_draft,
+        evaluated_input, evaluated_result, rule_version
+      )
+      SELECT gen_random_uuid()::text, product.id, 1, product.evaluated_draft,
+        product.evaluated_draft -> 'input', product.evaluated_result, product.rule_version
+      FROM catalog_product product
+      WHERE product.id = ANY($1::text[])
+    `,
+    [ids],
+  );
+
   return ids;
 }
 
@@ -195,11 +209,34 @@ suite("batch reprice integration", () => {
 
     expect(preview.rows[0]).toMatchObject({
       oldCost: 10,
+      currentPrice: 15,
       newCost: 11.25,
       belowTarget: true,
       errors: [],
     });
     expect(persisted.rows[0]).toMatchObject({ product_cost: 10, version: 1 });
+  });
+
+  it("createBatchRepricePreview_dropOffFixedFee_requiresManualRule", async () => {
+    const actor = await createActor("batch-dropoff-fee");
+    const input = productInput("DROP-OFF", { channelId: "mercado_livre" });
+    input.draft.tariffMode = "ml_drop_off";
+    input.draft.confirmedDropOff = true;
+    input.draft.input.fixedFee = 0;
+    const product = await createProduct(actor, input);
+
+    const blocked = await createBatchRepricePreview(actor, {
+      ids: [product.id],
+      changes: { fixedFee: 7 },
+    });
+    const manual = await createBatchRepricePreview(actor, {
+      ids: [product.id],
+      changes: { tariffMode: "manual", fixedFee: 7 },
+    });
+
+    expect(blocked).toMatchObject({ validCount: 0, invalidCount: 1 });
+    expect(blocked.rows[0]?.errors.join(" ")).toContain("regra manual");
+    expect(manual).toMatchObject({ validCount: 1, invalidCount: 0 });
   });
 
   it("createBatchRepricePreview_tariffChange_requiresExplicitCompatibleConfirmation", async () => {
@@ -321,17 +358,38 @@ suite("batch reprice integration", () => {
     expect(await snapshotCount(second.id)).toBe(2);
   });
 
-  it("createBatchRepricePreview_fiveHundredProducts_referenceFlow", async () => {
+  it("confirmBatchReprice_fiveHundredProducts_referenceFlow", async () => {
     const actor = await createActor("batch-500");
     const ids = await insertFixtures(actor, 500);
-    const startedAt = Date.now();
+    const previewStartedAt = Date.now();
     const preview = await createBatchRepricePreview(actor, {
       ids,
       changes: { fixedFee: 7 },
     });
-    const elapsedMs = Date.now() - startedAt;
+    const previewMs = Date.now() - previewStartedAt;
 
     expect(preview).toMatchObject({ validCount: 500, invalidCount: 0 });
-    expect(elapsedMs).toBeLessThan(10_000);
-  });
+    expect(previewMs).toBeLessThan(10_000);
+
+    const confirmStartedAt = Date.now();
+    const result = await confirmBatchReprice(actor, {
+      previewId: preview.previewId,
+      allowPartial: false,
+    });
+    const confirmMs = Date.now() - confirmStartedAt;
+    const persisted = await isolated.pool!.query<{ count: string }>(
+      "SELECT COUNT(*) AS count FROM catalog_product WHERE user_id = $1 AND version = 2 AND fixed_fee = 7",
+      [actor],
+    );
+
+    expect(result).toMatchObject({ updated: 500, skipped: 0, errors: [] });
+    expect(Number(persisted.rows[0]?.count)).toBe(500);
+    expect(await snapshotCount(ids[0])).toBe(2);
+    expect(await snapshotCount(ids[499])).toBe(2);
+    expect(await confirmBatchReprice(actor, {
+      previewId: preview.previewId,
+      allowPartial: false,
+    })).toEqual(result);
+    console.info(`Recálculo 500: prévia ${previewMs} ms; confirmação ${confirmMs} ms.`);
+  }, 60_000);
 });
